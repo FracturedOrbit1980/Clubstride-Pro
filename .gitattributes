@@ -1,0 +1,2 @@
+# A CRLF checkout makes bash reject new-release-keystore.sh ("$'\r': command not found").
+*.sh text eol=lf
