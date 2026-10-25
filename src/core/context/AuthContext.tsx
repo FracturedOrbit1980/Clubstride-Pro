@@ -92,11 +92,16 @@ const webLocation = (): WebLocation | null => {
   return { origin: loc.origin, href: loc.href, pathname: loc.pathname ?? '/' };
 };
 
+// GitHub Pages serves this app from a repo subpath, so a redirect at the bare origin
+// would land outside it. The directory of the current URL is the app's web root.
+const webBaseUrl = (web: WebLocation): string =>
+  `${web.origin}${web.pathname.slice(0, web.pathname.lastIndexOf('/') + 1)}`;
+
 // Web keeps the browser origin and marks the link in the query string; native uses the
 // clubstride:// scheme (or exp:// inside Expo Go). Supabase appends ?code= to either.
-const redirectUrl = (kind: 'callback' | 'recovery'): string => {
+const redirectUrl = (kind: 'recovery' | 'callback'): string => {
   const web = webLocation();
-  if (web) return kind === 'recovery' ? `${web.origin}/?auth=recovery` : `${web.origin}/?auth=callback`;
+  if (web) return `${webBaseUrl(web)}?auth=${kind}`;
   return createURL(kind === 'recovery' ? 'reset-password' : 'auth-callback');
 };
 
