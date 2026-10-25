@@ -5,6 +5,12 @@
 --   supabase db push        (or: psql "$DB_URL" -v ON_ERROR_STOP=1 -f this file)
 -- Idempotent: safe to re-run.
 --
+-- NOTE (2026-10-25): the copy actually applied to project qvslyhnwpdxqfzmjajki keeps every
+-- helper below in schema `private` (private.is_team_member, private.is_team_staff, ...) and its
+-- policies call private.*. This file still spells them public.*, which does not exist there;
+-- copying that qualification into a new migration fails with 42883. See
+-- 20261025120000_team_settings.sql for the working form.
+--
 -- What changed against the draft, and why it mattered:
 --   1. Role no longer comes from raw_user_meta_data. That field is client-supplied at
 --      signup, so anyone could register as a manager; a value outside the enum also threw

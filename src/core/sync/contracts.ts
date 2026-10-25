@@ -10,7 +10,8 @@ export type SyncTable =
   | 'players'
   | 'drills'
   | 'progression_feedback'
-  | 'attendance';
+  | 'attendance'
+  | 'team_settings';
 
 export type OutboxOp = 'upsert' | 'tombstone' | 'delete';
 
@@ -46,6 +47,9 @@ export const TABLE_CONTRACTS: Record<SyncTable, TableContract> = {
   match_events: { insertOwner: 'created_by', tombstoned: true, versionColumn: 'recorded_at', flushRank: 1 },
   progression_feedback: { insertOwner: 'coach_id', tombstoned: true, versionColumn: 'recorded_at', flushRank: 1 },
   attendance: { insertOwner: null, tombstoned: true, versionColumn: 'recorded_at', flushRank: 1 },
+  // One row per team, whose id *is* the team id: a queued settings edit is just an upsert
+  // on `teams.id`, so it needs no row-id lookup table on the phone. No delete path.
+  team_settings: { insertOwner: null, tombstoned: false, versionColumn: 'recorded_at', flushRank: 0 },
 };
 
 // Writing one of these on an upsert either overwrites a server-owned value (created_by

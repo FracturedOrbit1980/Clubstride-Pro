@@ -111,6 +111,9 @@ export class SyncQueue {
     this.key = userId ? outboxStorageKey(userId) : null;
     this.flushing = false;
     this.superseded = 0;
+    // Cleared before hydrate: the restored queue carries its own last error, and the previous
+    // account's error must not linger over a different coach's rows.
+    this.lastFlushError = null;
 
     if (!userId || !this.key) {
       this.state = null;
@@ -167,6 +170,10 @@ export class SyncQueue {
     if (this.userId !== userId || this.key !== key) return;
     this.state = state;
     this.warning = warning;
+    // A row parked by back-off or waiting out its retry delay is skipped by the drain below, so
+    // the error that put it there has to come back from storage or the banner would claim the
+    // phone simply has no signal.
+    this.lastFlushError = state.entries.find(entry => entry.lastError)?.lastError ?? null;
     this.notify();
     void this.drain();
   }

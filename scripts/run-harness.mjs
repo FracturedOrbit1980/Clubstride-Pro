@@ -8,4 +8,5 @@ if (nodeModule.registerHooks) {
   nodeModule.register('./node-loader-hook.mjs', import.meta.url);
 }
 
-await import('./outbox-harness.ts');
+await (await import('./outbox-harness.ts')).done;
+await (await import('./attendance-harness.ts')).done;

@@ -26,7 +26,11 @@ const toFailure = (error: { message: string; hint?: string | null; code?: string
  * Two presses, then one RPC. The order after it succeeds is deliberate - the local outbox is
  * cleared while the session still names the account being deleted, then the session is dropped.
  */
-export const SettingsScreen: React.FC = () => {
+export const SettingsScreen: React.FC<{
+  onOpenSquad: () => void;
+  onOpenAttendance: () => void;
+  onOpenSetup: () => void;
+}> = ({ onOpenSquad, onOpenAttendance, onOpenSetup }) => {
   const { user, tier, memberships, signOut } = useAuth();
   const { pending, blocked, queue } = useSyncQueue();
   const [phase, setPhase] = useState<Phase>('idle');
@@ -77,6 +81,18 @@ export const SettingsScreen: React.FC = () => {
             : `${unsent} change(s) are still only on this phone. Deleting the account discards them.`}
         </Text>
       </View>
+
+      <Pressable style={styles.secondary} onPress={onOpenSquad} disabled={memberships.length === 0}>
+        <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>View squad</Text>
+      </Pressable>
+
+      <Pressable style={styles.secondary} onPress={onOpenAttendance} disabled={memberships.length === 0}>
+        <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>Attendance</Text>
+      </Pressable>
+
+      <Pressable style={styles.secondary} onPress={onOpenSetup} disabled={memberships.length === 0}>
+        <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>Training setup</Text>
+      </Pressable>
 
       <Pressable style={styles.secondary} onPress={() => void signOut()} disabled={phase === 'deleting'}>
         <Text style={styles.secondaryLabel}>Sign out</Text>
@@ -144,6 +160,7 @@ const styles = {
   meta: { color: '#cbd5e1', fontSize: 13 },
   secondary: { padding: 12, borderRadius: 10, backgroundColor: '#1b1b22', alignItems: 'center' },
   secondaryLabel: { color: '#e2e8f0', fontSize: 15, fontWeight: '700' },
+  disabledLabel: { color: '#475569' },
   destructive: { padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#7f1d1d', alignItems: 'center' },
   destructiveLabel: { color: '#f87171', fontSize: 15, fontWeight: '700' },
   scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },

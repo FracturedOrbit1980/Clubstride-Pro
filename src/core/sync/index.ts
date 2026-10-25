@@ -22,6 +22,7 @@ export {
   type OutboxState,
 } from './outbox';
 export { SyncQueue, type SyncQueueSnapshot } from './syncQueue';
+export { stableRowId, uuidV5 } from './stableId';
 export {
   nowIso,
   queueEvent,

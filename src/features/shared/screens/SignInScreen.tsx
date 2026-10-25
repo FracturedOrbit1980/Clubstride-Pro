@@ -1,80 +1,113 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Button, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useAuth } from '../../../core/context/AuthContext';
+import {
+  AuthField,
+  AuthScreen,
+  LinkButton,
+  PrimaryButton,
+  SecondaryButton,
+  authStyles,
+} from '../components/AuthUi';
 
-/**
- * Deliberately sign-in only. There is no in-app sign-up yet, so a new coach needs their account
- * created in the Supabase dashboard first - which is also how `handle_new_user()` gets exercised
- * before an OAuth provider is wired up.
- */
-export const SignInScreen: React.FC = () => {
-  const { signIn } = useAuth();
+interface SignInScreenProps {
+  onCreateAccount: () => void;
+  onForgotPassword: () => void;
+}
+
+export const SignInScreen: React.FC<SignInScreenProps> = ({ onCreateAccount, onForgotPassword }) => {
+  const { signIn, signInWithGoogle, linkError, clearLinkError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'password' | 'google' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const submit = async (): Promise<void> => {
     if (busy) return;
-    setBusy(true);
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
+      setError('Enter your email and password.');
+      return;
+    }
+    setBusy('password');
     setError(null);
-    const failure = await signIn(email.trim().toLowerCase(), password);
-    // Supabase returns the same vague message for a wrong password and an unknown account, so it
-    // is shown verbatim rather than rephrased into something the app cannot know.
-    setError(failure ? failure.message : null);
-    setBusy(false);
+    clearLinkError();
+    const failure = await signIn(cleanEmail, password);
+    setError(failure);
+    setBusy(null);
   };
 
-  return (
-    <View style={styles.wrap}>
-      <Text style={styles.title}>Clubstride</Text>
-      <Text style={styles.subtitle}>Sign in to sync your squads.</Text>
+  const google = async (): Promise<void> => {
+    if (busy) return;
+    setBusy('google');
+    setError(null);
+    clearLinkError();
+    const failure = await signInWithGoogle();
+    setError(failure);
+    setBusy(null);
+  };
 
-      <TextInput
-        style={styles.input}
+  const shownError = error ?? linkError;
+
+  return (
+    <AuthScreen>
+      <Text style={authStyles.title}>Sign in</Text>
+      <Text style={authStyles.subtitle}>Sync your squads, fixtures and attendance.</Text>
+
+      <AuthField
+        label="Email"
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
         autoComplete="email"
+        textContentType="emailAddress"
         autoCorrect={false}
-        placeholder="Email"
-        placeholderTextColor="#64748b"
+        placeholder="you@club.com"
+        returnKeyType="next"
       />
-      <TextInput
-        style={styles.input}
+      <AuthField
+        label="Password"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
-        autoComplete="password"
-        placeholder="Password"
-        placeholderTextColor="#64748b"
+        autoComplete="current-password"
+        textContentType="password"
+        placeholder="Your password"
+        returnKeyType="go"
         onSubmitEditing={() => void submit()}
       />
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <Pressable accessibilityRole="button" onPress={onForgotPassword} style={authStyles.forgot}>
+        <Text style={authStyles.forgotLabel}>Forgot password?</Text>
+      </Pressable>
 
-      {busy ? (
-        <ActivityIndicator color="#facc15" />
-      ) : (
-        <Button title="Sign in" onPress={() => void submit()} />
-      )}
-    </View>
+      {shownError ? <Text style={authStyles.error}>{shownError}</Text> : null}
+
+      <PrimaryButton
+        label="Sign in"
+        onPress={() => void submit()}
+        busy={busy === 'password'}
+        disabled={busy === 'google'}
+      />
+
+      <View style={authStyles.dividerRow}>
+        <View style={authStyles.divider} />
+        <Text style={authStyles.dividerText}>or</Text>
+        <View style={authStyles.divider} />
+      </View>
+
+      <SecondaryButton
+        label="Continue with Google"
+        onPress={() => void google()}
+        busy={busy === 'google'}
+        disabled={busy === 'password'}
+      />
+
+      <View style={authStyles.linkRow}>
+        <Text style={authStyles.muted}>New to Clubstride?</Text>
+        <LinkButton label="Create an account" onPress={onCreateAccount} />
+      </View>
+    </AuthScreen>
   );
 };
-
-const styles = {
-  wrap: { flex: 1, justifyContent: 'center', gap: 10, padding: 24, backgroundColor: '#0b0f17' },
-  title: { color: '#e2e8f0', fontSize: 28, fontWeight: '800' },
-  subtitle: { color: '#94a3b8', fontSize: 14, marginBottom: 8 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#334155',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: '#e2e8f0',
-    backgroundColor: '#15151d',
-  },
-  error: { color: '#f87171', fontSize: 13 },
-} as const;

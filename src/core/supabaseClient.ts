@@ -5,8 +5,8 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
-const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+export const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
+export const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 // Fail at import, not at the first request. With a placeholder URL the client still
 // constructs happily and every call comes back as an opaque fetch error mid-match.

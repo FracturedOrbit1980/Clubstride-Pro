@@ -309,6 +309,11 @@ async function main(): Promise<void> {
   revived.attach('coach-3');
   await wait(25);
   assert('the two unsent rows come back after a restart', revived.getSnapshot().pending === 2, revived.getSnapshot());
+  assert(
+    'the reason they are stuck survives the restart too',
+    (revived.getSnapshot().lastFlushError ?? '').includes('Network request failed'),
+    revived.getSnapshot(),
+  );
 
   const other = new SyncQueue(fakeClient(plan) as never);
   other.attach('coach-4');
@@ -353,4 +358,4 @@ async function main(): Promise<void> {
   console.log(process.exitCode ? '\nSOME CHECKS FAILED' : '\nall outbox checks passed');
 }
 
-void main();
+export const done = main();
