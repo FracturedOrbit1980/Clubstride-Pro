@@ -20,7 +20,7 @@ import {
   type AttendanceMap,
   type AttendanceRow,
 } from '../src/features/coach/attendance/attendance';
-import { ATTENDANCE_REGISTER_PAGE, buildAttendanceRegisterHtml } from '../src/features/coach/attendance/register';
+import { attendanceRegisterFileName, buildAttendanceRegisterPdf } from '../src/features/coach/attendance/register';
 import { parseSquadRows } from '../src/features/coach/attendance/squad';
 import { stableRowId, uuidV5 } from '../src/core/sync/stableId';
 import { assertQueuedPayload } from '../src/core/sync/contracts';
@@ -199,75 +199,111 @@ async function main(): Promise<void> {
   addMark('p3', '2026-10-19', 'absent');
   addMark('p3', '2026-10-21', 'excused');
 
-  const registerHtml = buildAttendanceRegisterHtml({
+  const registerInput = {
     teamName: 'Clubstride FC',
     weekStart: '2026-10-19',
-    trainingDays: [1, 3, 5],
+    trainingDays: [1, 3, 5] as const,
     sessions: registerSessions,
     players: registerPlayers,
     records: registerMap,
     generatedAt: new Date(2026, 9, 23, 18, 5),
-  });
+  };
+  const registerPdfBytes = buildAttendanceRegisterPdf(registerInput);
+  const registerPdf = Buffer.from(registerPdfBytes).toString('latin1');
   const occurrences = (haystack: string, needle: string): number => haystack.split(needle).length - 1;
 
-  assert('the register names the squad and the week', registerHtml.includes('Clubstride FC') && registerHtml.includes('Week of 2026-10-19'));
-  assert(
-    'the register page is the A4 paper the native export asks for, with margins on the sheet',
-    registerHtml.includes(
-      `@page { size: ${ATTENDANCE_REGISTER_PAGE.width}pt ${ATTENDANCE_REGISTER_PAGE.height}pt; margin: 0; }`,
-    ) && registerHtml.includes(`max-width: ${ATTENDANCE_REGISTER_PAGE.width}pt`),
-  );
+  assert('the register is a real PDF on A4 paper', registerPdf.startsWith('%PDF-1.4') && registerPdf.includes('/MediaBox [0 0 595 842]'));
+  assert('the register names the squad and the week', registerPdf.includes('Clubstride FC') && registerPdf.includes('Week of 2026-10-19'));
   assert(
     'the register spells the training days out',
-    registerHtml.includes('Training days: Mon, Wed, Fri') && registerHtml.includes('MON 19 OCT') && registerHtml.includes('WED 21 OCT') && registerHtml.includes('FRI 23 OCT'),
+    registerPdf.includes('Training days: Mon, Wed, Fri') &&
+      registerPdf.includes('(MON) Tj') &&
+      registerPdf.includes('(19 OCT) Tj') &&
+      registerPdf.includes('(WED) Tj') &&
+      registerPdf.includes('(FRI) Tj'),
   );
-  assert('every player appears in shirt-number order', ['#7', '#4', '#1'].every(token => registerHtml.includes(token)) && registerHtml.indexOf('#7') < registerHtml.indexOf('#4'));
-  assert('each mark is rendered in its own session cell', occurrences(registerHtml, '>P</td>') === 3 && occurrences(registerHtml, '>L</td>') === 1 && occurrences(registerHtml, '>A</td>') === 2 && occurrences(registerHtml, '>E</td>') === 1);
-  assert('unmarked sessions stay visibly unmarked', occurrences(registerHtml, '<td class="mark unmarked">-</td>') === 2);
-  assert('the header counts marks out of every expected mark', registerHtml.includes('<b>7/9</b>') && registerHtml.includes('<b>57%</b>'));
-  assert('the session summary matches the marks', registerHtml.includes('2 present') && registerHtml.includes('0 present') && registerHtml.includes('67% attended') && registerHtml.includes('0% attended'));
-  assert('the generated timestamp is fixed for the export', registerHtml.includes('Generated 2026-10-23 18:05'));
   assert(
-    'names are HTML-escaped, not injected',
-    buildAttendanceRegisterHtml({
+    'every player appears in shirt-number order',
+    ['#7', '#4', '#1'].every(token => registerPdf.includes(token)) &&
+      registerPdf.indexOf('#7') < registerPdf.indexOf('#4'),
+  );
+  assert(
+    'each mark is rendered in its own session cell',
+    occurrences(registerPdf, '(P) Tj') === 3 &&
+      occurrences(registerPdf, '(L) Tj') === 1 &&
+      occurrences(registerPdf, '(A) Tj') === 2 &&
+      occurrences(registerPdf, '(E) Tj') === 1,
+  );
+  assert('unmarked sessions stay visibly unmarked', occurrences(registerPdf, '(-) Tj') === 2);
+  assert('the header counts marks out of every expected mark', registerPdf.includes('(7/9) Tj') && registerPdf.includes('(57%) Tj'));
+  assert(
+    'the session summary matches the marks',
+    registerPdf.includes('2 present') &&
+      registerPdf.includes('0 present') &&
+      registerPdf.includes('67% attended') &&
+      registerPdf.includes('0% attended'),
+  );
+  assert('the generated timestamp is fixed for the export', registerPdf.includes('Generated 2026-10-23 18:05'));
+  assert('the file name carries the squad and week', attendanceRegisterFileName('Clubstride FC', '2026-10-19') === 'clubstride-attendance-clubstride-fc-2026-10-19.pdf');
+
+  const escapedPdf = Buffer.from(
+    buildAttendanceRegisterPdf({
+      ...registerInput,
       teamName: 'A & B <FC>',
-      weekStart: '2026-10-19',
       trainingDays: [1],
       sessions: ['2026-10-19'],
-      players: [{ id: 'px', full_name: "O'Brien <script>alert(1)</script>", shirt_number: 9, position_tag: null, available: true }],
+      players: [{ id: 'px', full_name: "O'Brien (C) \\ Co", shirt_number: 9, position_tag: null, available: true }],
       records: {},
-      generatedAt: new Date(2026, 9, 23, 18, 5),
-    }).includes('A &amp; B &lt;FC&gt;') &&
-      buildAttendanceRegisterHtml({
-        teamName: 'A & B <FC>',
-        weekStart: '2026-10-19',
-        trainingDays: [1],
-        sessions: ['2026-10-19'],
-        players: [{ id: 'px', full_name: "O'Brien <script>alert(1)</script>", shirt_number: 9, position_tag: null, available: true }],
-        records: {},
-        generatedAt: new Date(2026, 9, 23, 18, 5),
-      }).includes('O&#39;Brien &lt;script&gt;alert(1)&lt;/script&gt;'),
+    }),
+  ).toString('latin1');
+  assert(
+    'parentheses and backslashes are escaped in the PDF text',
+    escapedPdf.includes("O'Brien \\(C\\) \\\\ Co") && escapedPdf.includes('A & B <FC>'),
   );
-  const emptyRegister = buildAttendanceRegisterHtml({
-    teamName: 'Clubstride FC',
-    weekStart: '2026-10-19',
-    trainingDays: [],
-    sessions: [],
-    players: registerPlayers,
-    records: {},
-    generatedAt: new Date(2026, 9, 23, 18, 5),
-  });
-  assert('a week without training explains itself instead of printing an empty table', emptyRegister.includes('No training days are set for this week') && !emptyRegister.includes('<table>'));
-  const rebuilt = buildAttendanceRegisterHtml({
-    teamName: 'Clubstride FC',
-    weekStart: '2026-10-19',
-    trainingDays: [1, 3, 5],
-    sessions: registerSessions,
-    players: registerPlayers,
-    records: registerMap,
-    generatedAt: new Date(2026, 9, 23, 18, 5),
-  });
-  assert('the same register exports byte-for-byte the same document', rebuilt === registerHtml);
+  const accentedPdf = Buffer.from(
+    buildAttendanceRegisterPdf({
+      ...registerInput,
+      players: [{ id: 'pz', full_name: 'Zoë Test', shirt_number: 12, position_tag: 'Wing', available: true }],
+      sessions: ['2026-10-19'],
+      records: {},
+    }),
+  ).toString('latin1');
+  assert('accented names are written in WinAnsi', accentedPdf.includes('Zo\\353 Test'));
+
+  const emptyRegister = Buffer.from(
+    buildAttendanceRegisterPdf({
+      ...registerInput,
+      trainingDays: [],
+      sessions: [],
+      records: {},
+    }),
+  ).toString('latin1');
+  assert(
+    'a week without training explains itself instead of drawing an empty table',
+    emptyRegister.includes('No training days are set for this week') && !emptyRegister.includes('(PLAYER) Tj'),
+  );
+
+  const manyPlayers = Array.from({ length: 45 }, (_, index) => ({
+    id: `m${index + 1}`,
+    full_name: `Player ${index + 1}`,
+    shirt_number: index + 1,
+    position_tag: null,
+    available: true,
+  }));
+  const manyPdf = Buffer.from(
+    buildAttendanceRegisterPdf({ ...registerInput, players: manyPlayers, records: {} }),
+  ).toString('latin1');
+  assert(
+    'a large squad paginates with a repeated table header and page numbers',
+    manyPdf.includes('/Count 2') &&
+      occurrences(manyPdf, '(PLAYER) Tj') === 2 &&
+      manyPdf.includes('Page 1 of 2') &&
+      manyPdf.includes('Page 2 of 2') &&
+      manyPdf.includes('Player 45'),
+  );
+
+  const rebuilt = Buffer.from(buildAttendanceRegisterPdf(registerInput));
+  assert('the same register exports byte-for-byte the same document', rebuilt.equals(Buffer.from(registerPdfBytes)));
 
   console.log(process.exitCode ? '\nSOME ATTENDANCE CHECKS FAILED' : '\nall attendance checks passed');
 }

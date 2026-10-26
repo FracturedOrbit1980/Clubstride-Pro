@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View, type TextStyle, type ViewStyle } from 'react-native';
-import * as Print from 'expo-print';
+import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useAuth } from '../../../core/context/AuthContext';
 import { stableRowId, useSyncQueue } from '../../../core/sync';
@@ -20,7 +20,7 @@ import {
   type AttendanceStatus,
 } from '../attendance/attendance';
 import { cacheKey, readCache, writeCache } from '../attendance/cache';
-import { buildAttendanceRegisterHtml, ATTENDANCE_REGISTER_PAGE } from '../attendance/register';
+import { attendanceRegisterFileName, buildAttendanceRegisterPdf } from '../attendance/register';
 import { parseSquadRows, type SquadPlayerRow } from '../attendance/squad';
 import { ci } from '../../shared/ci';
 import {
@@ -44,83 +44,17 @@ type Phase = 'loading' | 'ready';
 
 const mergeFailure = (parts: string[]): string | null => (parts.length === 0 ? null : parts.join(' '));
 
-const REGISTER_PRINT_ROOT_ID = 'attendance-register-print';
-
-/**
- * Expo Print's web build prints the current page, not the HTML it is handed, and mobile
- * browsers do not reliably print a child frame. So the register is mounted into the page for
- * the print pass instead: print CSS hides the app shell, and the browser's "Save as PDF" is
- * the download path. Phones get a real PDF from Print.printToFileAsync and share it.
- */
-const printRegisterOnWeb = (html: string): void => {
-  document.getElementById(REGISTER_PRINT_ROOT_ID)?.remove();
-  document.getElementById(`${REGISTER_PRINT_ROOT_ID}-style`)?.remove();
-
-  const parsed = new DOMParser().parseFromString(html, 'text/html');
-  const registerCss = Array.from(parsed.querySelectorAll('style'))
-    .map(sheet => sheet.textContent ?? '')
-    .join('\n');
-
-  const root = document.createElement('div');
-  root.id = REGISTER_PRINT_ROOT_ID;
-  root.setAttribute('aria-hidden', 'true');
-  root.innerHTML = parsed.body.innerHTML;
-
-  const style = document.createElement('style');
-  style.id = `${REGISTER_PRINT_ROOT_ID}-style`;
-  style.textContent = `
-    #${REGISTER_PRINT_ROOT_ID} { display: none; }
-    @media print {
-      html, body { height: auto !important; min-height: 0 !important; overflow: visible !important; background: #ffffff !important; }
-      body > *:not(#${REGISTER_PRINT_ROOT_ID}) { display: none !important; }
-      #${REGISTER_PRINT_ROOT_ID} { display: block !important; }
-      ${registerCss}
-    }
-  `;
-
-  document.head.appendChild(style);
-  document.body.appendChild(root);
-
-  let cleaned = false;
-  const cleanup = (): void => {
-    if (cleaned) return;
-    cleaned = true;
-    root.remove();
-    style.remove();
-  };
-  // Mobile print previews can finish taking their snapshot before afterprint fires.
-  window.addEventListener('afterprint', () => setTimeout(cleanup, 1500), { once: true });
-  try {
-    window.print();
-  } catch (error) {
-    cleanup();
-    throw error;
-  }
-  // A print dialog that never closes must not leave the register pinned to the app.
-  setTimeout(cleanup, 60000);
+const downloadRegisterOnWeb = (bytes: Uint8Array<ArrayBuffer>, fileName: string): void => {
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
 };
-
-const REGISTER_PDF_MIN_BASE64 = 8000;
-
-const createRegisterPdf = (
-  html: string,
-  useMarkupFormatter = false,
-): Promise<Print.FilePrintResult> =>
-  Print.printToFileAsync({
-    html,
-    width: ATTENDANCE_REGISTER_PAGE.width,
-    height: ATTENDANCE_REGISTER_PAGE.height,
-    base64: true,
-    ...(useMarkupFormatter ? { useMarkupFormatter: true } : {}),
-  });
-
-/**
- * A renderer that draws nothing still resolves: iOS can lay out zero pages, and Android can
- * write an empty document. Both are far smaller than a real register, which carries fonts and
- * the table, so a page-less or tiny PDF counts as a failed render and is never shared.
- */
-const isBlankPdf = (file: Print.FilePrintResult): boolean =>
-  file.numberOfPages < 1 || (file.base64?.length ?? 0) < REGISTER_PDF_MIN_BASE64;
 
 /**
  * Attendance is taken per session, not per week: the strip picks a training day, then every
@@ -395,7 +329,7 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
     setExportError(null);
     setExporting(true);
     try {
-      const html = buildAttendanceRegisterHtml({
+      const bytes = buildAttendanceRegisterPdf({
         teamName: membership.teamName,
         weekStart,
         trainingDays: training.days,
@@ -403,39 +337,21 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
         players,
         records: recordsRef.current,
       });
+      const fileName = attendanceRegisterFileName(membership.teamName, weekStart);
       if (Platform.OS === 'web') {
-        printRegisterOnWeb(html);
+        downloadRegisterOnWeb(bytes, fileName);
       } else {
-        let pdf = await createRegisterPdf(html);
-        if (isBlankPdf(pdf) && Platform.OS === 'ios') {
-          // The default WKWebView formatter depends on the web view's own layout, which can
-          // yield no pages. Expo's other iOS renderer is not tied to the view.
-          pdf = await createRegisterPdf(html, true);
+        const file = new File(Paths.cache, fileName);
+        if (file.exists) file.delete();
+        await file.write(bytes);
+        if (!(await Sharing.isAvailableAsync())) {
+          throw new Error('Sharing is not available on this device.');
         }
-        if (isBlankPdf(pdf)) {
-          // The system print sheet drives its own layout and write, so it can still save the
-          // register as a PDF where the direct file renderer returned nothing.
-          await Print.printAsync({
-            html,
-            width: ATTENDANCE_REGISTER_PAGE.width,
-            height: ATTENDANCE_REGISTER_PAGE.height,
-            ...(Platform.OS === 'ios' ? { useMarkupFormatter: true } : {}),
-          });
-          return;
-        }
-        if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(pdf.uri, {
-            mimeType: 'application/pdf',
-            dialogTitle: 'Attendance register',
-            UTI: 'com.adobe.pdf',
-          });
-        } else {
-          await Print.printAsync({
-            html,
-            width: ATTENDANCE_REGISTER_PAGE.width,
-            height: ATTENDANCE_REGISTER_PAGE.height,
-          });
-        }
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Attendance register',
+          UTI: 'com.adobe.pdf',
+        });
       }
     } catch (error) {
       setExportError(
@@ -556,8 +472,12 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
                 </Text>
               </Pressable>
             ) : null}
-            {canExport && Platform.OS === 'web' ? (
-              <Text style={styles.exportHint}>Opens the print dialog - choose "Save as PDF".</Text>
+            {canExport ? (
+              <Text style={styles.exportHint}>
+                {Platform.OS === 'web'
+                  ? "Downloads this week's register as a PDF."
+                  : 'Shares a PDF you can save or send.'}
+              </Text>
             ) : null}
             {exportError ? <Text style={styles.error}>{exportError}</Text> : null}
           </View>
