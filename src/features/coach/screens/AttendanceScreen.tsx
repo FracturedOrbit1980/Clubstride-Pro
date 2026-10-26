@@ -43,52 +43,60 @@ type Phase = 'loading' | 'ready';
 
 const mergeFailure = (parts: string[]): string | null => (parts.length === 0 ? null : parts.join(' '));
 
+const REGISTER_PRINT_ROOT_ID = 'attendance-register-print';
+
 /**
- * Expo Print's web build prints the current page, not the HTML it is handed, so the web
- * build prints an off-screen A4 iframe holding the register instead. A frame needs no popup
- * permission, and the browser's "Save as PDF" is the download path. Phones get a real PDF
- * from Print.printToFileAsync and share it instead.
+ * Expo Print's web build prints the current page, not the HTML it is handed, and mobile
+ * browsers do not reliably print a child frame. So the register is mounted into the page for
+ * the print pass instead: print CSS hides the app shell, and the browser's "Save as PDF" is
+ * the download path. Phones get a real PDF from Print.printToFileAsync and share it.
  */
 const printRegisterOnWeb = (html: string): void => {
-  const frame = document.createElement('iframe');
-  frame.setAttribute('aria-hidden', 'true');
-  frame.title = 'Attendance register print view';
-  frame.style.position = 'fixed';
-  // A 1px frame has a 1px layout viewport, so the print preview can come out blank. Keep a
-  // full A4 viewport and move the frame off-screen instead of shrinking it.
-  frame.style.left = '-10000px';
-  frame.style.top = '0';
-  frame.style.width = '794px';
-  frame.style.height = '1123px';
-  frame.style.border = '0';
-  frame.style.pointerEvents = 'none';
+  document.getElementById(REGISTER_PRINT_ROOT_ID)?.remove();
+  document.getElementById(`${REGISTER_PRINT_ROOT_ID}-style`)?.remove();
 
-  let printed = false;
-  const print = (): void => {
-    if (printed) return;
-    const win = frame.contentWindow;
-    if (!win) return;
-    printed = true;
-    win.print();
-    setTimeout(() => frame.remove(), 60000);
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const registerCss = Array.from(parsed.querySelectorAll('style'))
+    .map(sheet => sheet.textContent ?? '')
+    .join('\n');
+
+  const root = document.createElement('div');
+  root.id = REGISTER_PRINT_ROOT_ID;
+  root.setAttribute('aria-hidden', 'true');
+  root.innerHTML = parsed.body.innerHTML;
+
+  const style = document.createElement('style');
+  style.id = `${REGISTER_PRINT_ROOT_ID}-style`;
+  style.textContent = `
+    #${REGISTER_PRINT_ROOT_ID} { display: none; }
+    @media print {
+      html, body { height: auto !important; min-height: 0 !important; overflow: visible !important; background: #ffffff !important; }
+      body > *:not(#${REGISTER_PRINT_ROOT_ID}) { display: none !important; }
+      #${REGISTER_PRINT_ROOT_ID} { display: block !important; }
+      ${registerCss}
+    }
+  `;
+
+  document.head.appendChild(style);
+  document.body.appendChild(root);
+
+  let cleaned = false;
+  const cleanup = (): void => {
+    if (cleaned) return;
+    cleaned = true;
+    root.remove();
+    style.remove();
   };
-
-  frame.addEventListener(
-    'load',
-    () => {
-      // Let the register table complete a layout pass before the print dialog snapshots it.
-      frame.contentWindow?.requestAnimationFrame(() => setTimeout(print, 0));
-    },
-    { once: true },
-  );
-  frame.srcdoc = html;
-  document.body.appendChild(frame);
-  if (!frame.contentWindow) {
-    frame.remove();
-    throw new Error('The browser could not open the register print view.');
+  // Mobile print previews can finish taking their snapshot before afterprint fires.
+  window.addEventListener('afterprint', () => setTimeout(cleanup, 1500), { once: true });
+  try {
+    window.print();
+  } catch (error) {
+    cleanup();
+    throw error;
   }
-  // A frame that never fires load must still reach the print dialog.
-  setTimeout(print, 1200);
+  // A print dialog that never closes must not leave the register pinned to the app.
+  setTimeout(cleanup, 60000);
 };
 
 /**
