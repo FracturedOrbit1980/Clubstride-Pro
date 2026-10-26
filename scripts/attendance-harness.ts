@@ -17,8 +17,10 @@ import {
   mergeAttendance,
   parseAttendanceRows,
   withAttendance,
+  type AttendanceMap,
   type AttendanceRow,
 } from '../src/features/coach/attendance/attendance';
+import { buildAttendanceRegisterHtml } from '../src/features/coach/attendance/register';
 import { parseSquadRows } from '../src/features/coach/attendance/squad';
 import { stableRowId, uuidV5 } from '../src/core/sync/stableId';
 import { assertQueuedPayload } from '../src/core/sync/contracts';
@@ -170,6 +172,96 @@ async function main(): Promise<void> {
     rejected = String(error);
   }
   assert('team_settings refuses server-owned columns', rejected.includes('server-owned'), rejected);
+
+  // --- 6. the attendance register PDF document -------------------------------------------
+
+  const registerPlayers = [
+    { id: 'p1', full_name: 'Alex Test', shirt_number: 7, position_tag: 'FWD', available: true },
+    { id: 'p2', full_name: 'Sam Test', shirt_number: 4, position_tag: 'MID', available: true },
+    { id: 'p3', full_name: 'Jo Test', shirt_number: 1, position_tag: 'GK', available: true },
+  ];
+  const registerSessions = ['2026-10-19', '2026-10-21', '2026-10-23'];
+  let registerMap: AttendanceMap = {};
+  const addMark = (playerId: string, sessionDate: string, status: AttendanceRow['status']): void => {
+    registerMap = withAttendance(registerMap, {
+      id: `row-${playerId}-${sessionDate}`,
+      player_id: playerId,
+      session_date: sessionDate,
+      status,
+      recorded_at: '2026-10-23T18:00:00.000Z',
+    });
+  };
+  addMark('p1', '2026-10-19', 'present');
+  addMark('p1', '2026-10-21', 'late');
+  addMark('p1', '2026-10-23', 'absent');
+  addMark('p2', '2026-10-19', 'present');
+  addMark('p2', '2026-10-21', 'present');
+  addMark('p3', '2026-10-19', 'absent');
+  addMark('p3', '2026-10-21', 'excused');
+
+  const registerHtml = buildAttendanceRegisterHtml({
+    teamName: 'Clubstride FC',
+    weekStart: '2026-10-19',
+    trainingDays: [1, 3, 5],
+    sessions: registerSessions,
+    players: registerPlayers,
+    records: registerMap,
+    generatedAt: new Date(2026, 9, 23, 18, 5),
+  });
+  const occurrences = (haystack: string, needle: string): number => haystack.split(needle).length - 1;
+
+  assert('the register names the squad and the week', registerHtml.includes('Clubstride FC') && registerHtml.includes('Week of 2026-10-19'));
+  assert(
+    'the register spells the training days out',
+    registerHtml.includes('Training days: Mon, Wed, Fri') && registerHtml.includes('MON 19 OCT') && registerHtml.includes('WED 21 OCT') && registerHtml.includes('FRI 23 OCT'),
+  );
+  assert('every player appears in shirt-number order', ['#7', '#4', '#1'].every(token => registerHtml.includes(token)) && registerHtml.indexOf('#7') < registerHtml.indexOf('#4'));
+  assert('each mark is rendered in its own session cell', occurrences(registerHtml, '>P</td>') === 3 && occurrences(registerHtml, '>L</td>') === 1 && occurrences(registerHtml, '>A</td>') === 2 && occurrences(registerHtml, '>E</td>') === 1);
+  assert('unmarked sessions stay visibly unmarked', occurrences(registerHtml, '<td class="mark unmarked">-</td>') === 2);
+  assert('the header counts marks out of every expected mark', registerHtml.includes('<b>7/9</b>') && registerHtml.includes('<b>57%</b>'));
+  assert('the session summary matches the marks', registerHtml.includes('2 present') && registerHtml.includes('0 present') && registerHtml.includes('67% attended') && registerHtml.includes('0% attended'));
+  assert('the generated timestamp is fixed for the export', registerHtml.includes('Generated 2026-10-23 18:05'));
+  assert(
+    'names are HTML-escaped, not injected',
+    buildAttendanceRegisterHtml({
+      teamName: 'A & B <FC>',
+      weekStart: '2026-10-19',
+      trainingDays: [1],
+      sessions: ['2026-10-19'],
+      players: [{ id: 'px', full_name: "O'Brien <script>alert(1)</script>", shirt_number: 9, position_tag: null, available: true }],
+      records: {},
+      generatedAt: new Date(2026, 9, 23, 18, 5),
+    }).includes('A &amp; B &lt;FC&gt;') &&
+      buildAttendanceRegisterHtml({
+        teamName: 'A & B <FC>',
+        weekStart: '2026-10-19',
+        trainingDays: [1],
+        sessions: ['2026-10-19'],
+        players: [{ id: 'px', full_name: "O'Brien <script>alert(1)</script>", shirt_number: 9, position_tag: null, available: true }],
+        records: {},
+        generatedAt: new Date(2026, 9, 23, 18, 5),
+      }).includes('O&#39;Brien &lt;script&gt;alert(1)&lt;/script&gt;'),
+  );
+  const emptyRegister = buildAttendanceRegisterHtml({
+    teamName: 'Clubstride FC',
+    weekStart: '2026-10-19',
+    trainingDays: [],
+    sessions: [],
+    players: registerPlayers,
+    records: {},
+    generatedAt: new Date(2026, 9, 23, 18, 5),
+  });
+  assert('a week without training explains itself instead of printing an empty table', emptyRegister.includes('No training days are set for this week') && !emptyRegister.includes('<table>'));
+  const rebuilt = buildAttendanceRegisterHtml({
+    teamName: 'Clubstride FC',
+    weekStart: '2026-10-19',
+    trainingDays: [1, 3, 5],
+    sessions: registerSessions,
+    players: registerPlayers,
+    records: registerMap,
+    generatedAt: new Date(2026, 9, 23, 18, 5),
+  });
+  assert('the same register exports byte-for-byte the same document', rebuilt === registerHtml);
 
   console.log(process.exitCode ? '\nSOME ATTENDANCE CHECKS FAILED' : '\nall attendance checks passed');
 }

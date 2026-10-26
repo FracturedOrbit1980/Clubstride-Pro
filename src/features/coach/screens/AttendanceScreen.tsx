@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { useAuth } from '../../../core/context/AuthContext';
 import { stableRowId, useSyncQueue } from '../../../core/sync';
 import { supabase } from '../../../core/supabaseClient';
@@ -18,6 +20,7 @@ import {
   type AttendanceStatus,
 } from '../attendance/attendance';
 import { cacheKey, readCache, writeCache } from '../attendance/cache';
+import { buildAttendanceRegisterHtml } from '../attendance/register';
 import { parseSquadRows, type SquadPlayerRow } from '../attendance/squad';
 import {
   parseTrainingSettings,
@@ -39,6 +42,47 @@ import {
 type Phase = 'loading' | 'ready';
 
 const mergeFailure = (parts: string[]): string | null => (parts.length === 0 ? null : parts.join(' '));
+
+/**
+ * Expo Print's web build prints the current page, not the HTML it is handed, so the web
+ * build prints a hidden iframe holding the register instead. A frame needs no popup
+ * permission, and the browser's "Save as PDF" is the download path. Phones get a real PDF
+ * from Print.printToFileAsync and share it instead.
+ */
+const printRegisterOnWeb = (html: string): void => {
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.position = 'fixed';
+  frame.style.right = '0';
+  frame.style.bottom = '0';
+  frame.style.width = '1px';
+  frame.style.height = '1px';
+  frame.style.border = '0';
+  frame.style.pointerEvents = 'none';
+  document.body.appendChild(frame);
+
+  const win = frame.contentWindow;
+  const doc = frame.contentDocument;
+  if (!win || !doc) {
+    frame.remove();
+    throw new Error('The browser could not open the register print view.');
+  }
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  let printed = false;
+  const print = (): void => {
+    if (printed) return;
+    printed = true;
+    win.focus();
+    win.print();
+    setTimeout(() => frame.remove(), 60000);
+  };
+  frame.addEventListener('load', print, { once: true });
+  // A same-document write can finish before the load listener is attached.
+  setTimeout(print, 1200);
+};
 
 /**
  * Attendance is taken per session, not per week: the strip picks a training day, then every
@@ -70,6 +114,8 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
   const [baseError, setBaseError] = useState<string | null>(null);
   const [weekError, setWeekError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const recordsRef = useRef<AttendanceMap>({});
   const trainingRef = useRef<TrainingSettings>({ days: [], recordedAt: null });
@@ -115,6 +161,7 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
       setBaseError(null);
       setWeekError(null);
       setSaveError(null);
+      setExportError(null);
       if (teamId && userId) setPhase('loading');
     }
 
@@ -305,6 +352,44 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
     persistRecords(next);
   };
 
+  const exportRegister = async (): Promise<void> => {
+    if (exporting || !membership || sessions.length === 0 || players.length === 0) return;
+    setExportError(null);
+    setExporting(true);
+    try {
+      const html = buildAttendanceRegisterHtml({
+        teamName: membership.teamName,
+        weekStart,
+        trainingDays: training.days,
+        sessions,
+        players,
+        records: recordsRef.current,
+      });
+      if (Platform.OS === 'web') {
+        printRegisterOnWeb(html);
+      } else {
+        const { uri } = await Print.printToFileAsync({ html });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: 'Attendance register',
+            UTI: 'com.adobe.pdf',
+          });
+        } else {
+          await Print.printAsync({ html });
+        }
+      }
+    } catch (error) {
+      setExportError(
+        `The register PDF was not created: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const canExport = sessions.length > 0 && players.length > 0;
+
   const roleLabel = membership
     ? membership.role === 'manager'
       ? 'Manager'
@@ -399,6 +484,24 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
                 );
               })}
             </View>
+
+            {canExport ? (
+              <Pressable
+                onPress={() => void exportRegister()}
+                disabled={exporting}
+                accessibilityRole="button"
+                accessibilityLabel="Export this week's attendance register as a PDF"
+                style={[styles.exportButton, exporting && styles.exportButtonOff]}
+              >
+                <Text style={styles.exportLabel}>
+                  {exporting ? 'Preparing register...' : 'Export register PDF'}
+                </Text>
+              </Pressable>
+            ) : null}
+            {canExport && Platform.OS === 'web' ? (
+              <Text style={styles.exportHint}>Opens the print dialog - choose "Save as PDF".</Text>
+            ) : null}
+            {exportError ? <Text style={styles.error}>{exportError}</Text> : null}
           </View>
 
           {baseError || weekError ? (
@@ -557,6 +660,17 @@ const styles = {
     borderColor: '#273449',
   },
   daySelected: { backgroundColor: '#facc15', borderColor: '#facc15' },
+  exportButton: {
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#facc15',
+    backgroundColor: '#111827',
+    alignItems: 'center',
+  },
+  exportButtonOff: { opacity: 0.5 },
+  exportLabel: { color: '#facc15', fontSize: 13, fontWeight: '800' },
+  exportHint: { color: '#94a3b8', fontSize: 11, lineHeight: 16, textAlign: 'center' },
   dayOff: { opacity: 0.35 },
   dayToday: { borderColor: '#facc15' },
   dayName: { color: '#94a3b8', fontSize: 10, fontWeight: '700' },
