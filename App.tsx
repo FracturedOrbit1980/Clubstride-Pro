@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/core/context/AuthContext';
 import { SyncQueueProvider } from './src/core/sync';
 import { AttendanceScreen } from './src/features/coach/screens/AttendanceScreen';
+import { LiteWeekScreen } from './src/features/coach/screens/LiteWeekScreen';
 import { SetupScreen } from './src/features/coach/screens/SetupScreen';
 import { SquadScreen } from './src/features/coach/screens/SquadScreen';
+import { loadAppMode, saveAppMode, type AppMode } from './src/features/shared/appMode';
 import { ForgotPasswordScreen } from './src/features/shared/screens/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './src/features/shared/screens/ResetPasswordScreen';
 import { SettingsScreen } from './src/features/shared/screens/SettingsScreen';
@@ -37,25 +39,46 @@ const Problem: React.FC<{ title: string; body: string }> = ({ title, body }) => 
   );
 };
 
-type RootView = 'settings' | 'squad' | 'setup' | 'attendance';
+type RootView = 'settings' | 'squad' | 'setup' | 'attendance' | 'lite';
 type AuthView = 'signIn' | 'signUp' | 'forgot';
 
 const Root: React.FC = () => {
   const { status, recovery } = useAuth();
   const [view, setView] = useState<RootView>('settings');
+  const [mode, setMode] = useState<AppMode>('pro');
+  const [modeReady, setModeReady] = useState(false);
   const [authView, setAuthView] = useState<AuthView>('signIn');
   // Setup is reachable from both Settings and Attendance; Back has to return to the one the
   // coach came from, or editing the days dumps them on a screen they were not using.
   const [setupFrom, setSetupFrom] = useState<'settings' | 'attendance'>('settings');
 
+  useEffect(() => {
+    let alive = true;
+    void loadAppMode().then(stored => {
+      if (!alive) return;
+      setMode(stored);
+      if (stored === 'lite') setView('lite');
+      setModeReady(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const changeMode = async (next: AppMode): Promise<string | null> => {
+    setMode(next);
+    setView('settings');
+    return saveAppMode(next);
+  };
+
   // A recovery link outranks every other screen: the exchange signs the user in, so waiting
   // for status would flash Settings before asking for the new password.
   if (recovery.active) return <ResetPasswordScreen />;
 
-  if (status === 'loading') {
+  if (status === 'loading' || !modeReady) {
     return (
       <View style={styles.center}>
-        <Text style={styles.body}>Restoring your session...</Text>
+        <Text style={styles.body}>Loading your club...</Text>
       </View>
     );
   }
@@ -93,9 +116,12 @@ const Root: React.FC = () => {
     <View style={styles.screen}>
       <StatusBar style="light" />
       <SyncStatusBanner />
-      {view === 'squad' ? <SquadScreen onBack={() => setView('settings')} /> : null}
+      {mode === 'pro' && view === 'squad' ? <SquadScreen onBack={() => setView('settings')} /> : null}
       {view === 'settings' ? (
         <SettingsScreen
+          mode={mode}
+          onModeChange={changeMode}
+          onOpenLite={() => setView('lite')}
           onOpenSquad={() => setView('squad')}
           onOpenAttendance={() => setView('attendance')}
           onOpenSetup={() => {
@@ -104,7 +130,10 @@ const Root: React.FC = () => {
           }}
         />
       ) : null}
-      {view === 'attendance' ? (
+      {view === 'lite' ? (
+        <LiteWeekScreen onOpenSettings={() => setView('settings')} onSwitchToPro={() => void changeMode('pro')} />
+      ) : null}
+      {mode === 'pro' && view === 'attendance' ? (
         <AttendanceScreen
           onBack={() => setView('settings')}
           onOpenSetup={() => {
@@ -113,7 +142,7 @@ const Root: React.FC = () => {
           }}
         />
       ) : null}
-      {view === 'setup' ? (
+      {mode === 'pro' && view === 'setup' ? (
         <SetupScreen onBack={() => setView(setupFrom)} onOpenAttendance={() => setView('attendance')} />
       ) : null}
     </View>

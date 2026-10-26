@@ -5,6 +5,7 @@ import { useSyncQueue } from '../../../core/sync';
 import { supabase } from '../../../core/supabaseClient';
 import { BrandLockup } from '../components/BrandLockup';
 import { ci } from '../ci';
+import type { AppMode } from '../appMode';
 
 type Phase = 'idle' | 'confirming' | 'deleting' | 'failed';
 
@@ -32,11 +33,20 @@ export const SettingsScreen: React.FC<{
   onOpenSquad: () => void;
   onOpenAttendance: () => void;
   onOpenSetup: () => void;
-}> = ({ onOpenSquad, onOpenAttendance, onOpenSetup }) => {
+  mode: AppMode;
+  onModeChange: (next: AppMode) => Promise<string | null>;
+  onOpenLite: () => void;
+}> = ({ onOpenSquad, onOpenAttendance, onOpenSetup, mode, onModeChange, onOpenLite }) => {
   const { user, tier, memberships, signOut } = useAuth();
   const { pending, blocked, queue } = useSyncQueue();
   const [phase, setPhase] = useState<Phase>('idle');
   const [failure, setFailure] = useState<DeletionFailure | null>(null);
+  const [modeError, setModeError] = useState<string | null>(null);
+
+  const applyMode = async (next: AppMode): Promise<void> => {
+    if (next === mode) return;
+    setModeError(await onModeChange(next));
+  };
 
   const unsent = pending + blocked;
 
@@ -77,6 +87,31 @@ export const SettingsScreen: React.FC<{
       </View>
 
       <View style={styles.card}>
+        <Text style={styles.label}>View</Text>
+        <View style={styles.modeRow}>
+          {(['lite', 'pro'] as const).map(option => (
+            <Pressable
+              key={option}
+              style={[styles.modeChip, mode === option && styles.modeChipOn]}
+              onPress={() => void applyMode(option)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: mode === option }}
+            >
+              <Text style={[styles.modeLabel, mode === option && styles.modeLabelOn]}>
+                {option === 'lite' ? 'Lite' : 'Pro'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.meta}>
+          {mode === 'pro'
+            ? 'Attendance, training setup, squad and the register.'
+            : 'Squad and training days only. Attendance, setup and the register come back in Pro.'}
+        </Text>
+        {modeError ? <Text style={styles.modeError}>{modeError}</Text> : null}
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.label}>Data on this phone</Text>
         <Text style={styles.meta}>
           {unsent === 0
@@ -85,17 +120,25 @@ export const SettingsScreen: React.FC<{
         </Text>
       </View>
 
-      <Pressable style={styles.secondary} onPress={onOpenSquad} disabled={memberships.length === 0}>
-        <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>View squad</Text>
-      </Pressable>
+      {mode === 'lite' ? (
+        <Pressable style={styles.secondary} onPress={onOpenLite} disabled={memberships.length === 0}>
+          <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>Open Lite view</Text>
+        </Pressable>
+      ) : (
+        <>
+          <Pressable style={styles.secondary} onPress={onOpenSquad} disabled={memberships.length === 0}>
+            <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>View squad</Text>
+          </Pressable>
 
-      <Pressable style={styles.secondary} onPress={onOpenAttendance} disabled={memberships.length === 0}>
-        <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>Attendance</Text>
-      </Pressable>
+          <Pressable style={styles.secondary} onPress={onOpenAttendance} disabled={memberships.length === 0}>
+            <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>Attendance</Text>
+          </Pressable>
 
-      <Pressable style={styles.secondary} onPress={onOpenSetup} disabled={memberships.length === 0}>
-        <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>Training setup</Text>
-      </Pressable>
+          <Pressable style={styles.secondary} onPress={onOpenSetup} disabled={memberships.length === 0}>
+            <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>Training setup</Text>
+          </Pressable>
+        </>
+      )}
 
       <Pressable style={styles.secondary} onPress={() => void signOut()} disabled={phase === 'deleting'}>
         <Text style={styles.secondaryLabel}>Sign out</Text>
@@ -161,6 +204,12 @@ const styles = {
   label: { color: ci.color.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
   value: { color: ci.color.text, fontSize: 15 },
   meta: { color: ci.color.muted, fontSize: 13 },
+  modeRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  modeChip: { flex: 1, paddingVertical: 10, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center', borderWidth: 1, borderColor: ci.color.raised },
+  modeChipOn: { backgroundColor: ci.color.accent, borderColor: ci.color.accent },
+  modeLabel: { color: ci.color.text, fontSize: 14, fontWeight: '700' },
+  modeLabelOn: { color: ci.color.onAccent },
+  modeError: { color: ci.color.danger, fontSize: 13 },
   secondary: { padding: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center' },
   secondaryLabel: { color: ci.color.text, fontSize: 15, fontWeight: '700' },
   disabledLabel: { color: ci.color.disabledText },
