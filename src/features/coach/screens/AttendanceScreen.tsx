@@ -45,42 +45,49 @@ const mergeFailure = (parts: string[]): string | null => (parts.length === 0 ? n
 
 /**
  * Expo Print's web build prints the current page, not the HTML it is handed, so the web
- * build prints a hidden iframe holding the register instead. A frame needs no popup
+ * build prints an off-screen A4 iframe holding the register instead. A frame needs no popup
  * permission, and the browser's "Save as PDF" is the download path. Phones get a real PDF
  * from Print.printToFileAsync and share it instead.
  */
 const printRegisterOnWeb = (html: string): void => {
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
+  frame.title = 'Attendance register print view';
   frame.style.position = 'fixed';
-  frame.style.right = '0';
-  frame.style.bottom = '0';
-  frame.style.width = '1px';
-  frame.style.height = '1px';
+  // A 1px frame has a 1px layout viewport, so the print preview can come out blank. Keep a
+  // full A4 viewport and move the frame off-screen instead of shrinking it.
+  frame.style.left = '-10000px';
+  frame.style.top = '0';
+  frame.style.width = '794px';
+  frame.style.height = '1123px';
   frame.style.border = '0';
   frame.style.pointerEvents = 'none';
-  document.body.appendChild(frame);
-
-  const win = frame.contentWindow;
-  const doc = frame.contentDocument;
-  if (!win || !doc) {
-    frame.remove();
-    throw new Error('The browser could not open the register print view.');
-  }
-  doc.open();
-  doc.write(html);
-  doc.close();
 
   let printed = false;
   const print = (): void => {
     if (printed) return;
+    const win = frame.contentWindow;
+    if (!win) return;
     printed = true;
-    win.focus();
     win.print();
     setTimeout(() => frame.remove(), 60000);
   };
-  frame.addEventListener('load', print, { once: true });
-  // A same-document write can finish before the load listener is attached.
+
+  frame.addEventListener(
+    'load',
+    () => {
+      // Let the register table complete a layout pass before the print dialog snapshots it.
+      frame.contentWindow?.requestAnimationFrame(() => setTimeout(print, 0));
+    },
+    { once: true },
+  );
+  frame.srcdoc = html;
+  document.body.appendChild(frame);
+  if (!frame.contentWindow) {
+    frame.remove();
+    throw new Error('The browser could not open the register print view.');
+  }
+  // A frame that never fires load must still reach the print dialog.
   setTimeout(print, 1200);
 };
 
