@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSyncQueue } from '../../../core/sync';
+import { ci } from '../ci';
 
 const plural = (count: number, word: string): string => `${count} ${word}${count === 1 ? '' : 's'}`;
 
@@ -42,9 +43,16 @@ export const SyncStatusBanner: React.FC = () => {
 };
 
 const styles = {
-  wrap: { padding: 12, borderRadius: 12, backgroundColor: '#1b1b22', marginHorizontal: 12 },
-  headline: { color: '#facc15', fontSize: 14, fontWeight: '700' },
-  detail: { color: '#cbd5e1', fontSize: 12, marginTop: 4 },
-  retry: { marginTop: 8, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, backgroundColor: '#facc15', alignSelf: 'flex-start' },
-  retryLabel: { color: '#111115', fontSize: 12, fontWeight: '800' },
+  wrap: {
+    padding: 12,
+    borderRadius: ci.radius.card,
+    backgroundColor: ci.color.surface,
+    borderWidth: 1,
+    borderColor: ci.color.border,
+    marginHorizontal: 12,
+  },
+  headline: { color: ci.color.accent, fontSize: 14, fontWeight: '700' },
+  detail: { color: ci.color.muted, fontSize: 12, marginTop: 4 },
+  retry: { marginTop: 8, paddingVertical: 6, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.primary, alignSelf: 'flex-start' },
+  retryLabel: { color: ci.color.onPrimary, fontSize: 12, fontWeight: '800' },
 } as const;

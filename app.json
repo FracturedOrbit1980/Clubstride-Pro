@@ -1,12 +1,18 @@
 {
   "expo": {
-    "name": "Clubstride-Mobile",
+    "name": "Clubstride Pro",
     "slug": "clubstride-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "clubstride",
-    "userInterfaceStyle": "light",
-    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A1630",
+    "icon": "./assets/brand/app-icon.png",
+    "splash": {
+      "image": "./assets/brand/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A1630"
+    },
     "ios": {
       "bundleIdentifier": "com.clubstride.mobile",
       "supportsTablet": true
@@ -16,10 +22,9 @@
       "versionCode": 1,
       "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundColor": "#E6F4FE",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/brand/android-icon-foreground.png",
+        "backgroundColor": "#0A1630",
+        "monochromeImage": "./assets/brand/android-icon-monochrome.png"
       },
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
@@ -37,6 +42,9 @@
     },
     "plugins": [
       "expo-web-browser"
-    ]
+    ],
+    "web": {
+      "favicon": "./assets/brand/app-icon.png"
+    }
   }
 }

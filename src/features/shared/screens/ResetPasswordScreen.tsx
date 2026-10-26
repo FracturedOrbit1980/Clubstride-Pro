@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { useAuth } from '../../../core/context/AuthContext';
 import { AuthField, AuthScreen, LinkButton, PrimaryButton, authStyles } from '../components/AuthUi';
+import { ci } from '../ci';
 
 export const ResetPasswordScreen: React.FC = () => {
   const { recovery, clearRecovery, updatePassword, session } = useAuth();
@@ -36,7 +37,7 @@ export const ResetPasswordScreen: React.FC = () => {
     return (
       <AuthScreen>
         <View style={authStyles.center}>
-          <ActivityIndicator color="#facc15" />
+          <ActivityIndicator color={ci.color.primary} />
           <Text style={authStyles.muted}>Checking your reset link...</Text>
         </View>
       </AuthScreen>

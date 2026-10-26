@@ -12,6 +12,7 @@ import { SettingsScreen } from './src/features/shared/screens/SettingsScreen';
 import { SignInScreen } from './src/features/shared/screens/SignInScreen';
 import { SignUpScreen } from './src/features/shared/screens/SignUpScreen';
 import { SyncStatusBanner } from './src/features/shared/components/SyncStatusBanner';
+import { ci } from './src/features/shared/ci';
 
 /**
  * Every AuthStatus gets a screen. 'noProfile' means the signup trigger never wrote public.users,
@@ -130,11 +131,11 @@ const App: React.FC = () => (
 export default App;
 
 const styles = {
-  screen: { flex: 1, backgroundColor: '#0b0f17', paddingTop: 8 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10, padding: 24, backgroundColor: '#0b0f17' },
-  title: { color: '#e2e8f0', fontSize: 18, fontWeight: '800' },
-  body: { color: '#cbd5e1', fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  screen: { flex: 1, backgroundColor: ci.color.background, paddingTop: 8 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10, padding: 24, backgroundColor: ci.color.background },
+  title: { color: ci.color.text, fontSize: 18, fontWeight: '800' },
+  body: { color: ci.color.muted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   row: { flexDirection: 'row', gap: 10, marginTop: 6 },
-  action: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#1b1b22' },
-  actionLabel: { color: '#facc15', fontSize: 14, fontWeight: '700' },
+  action: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
+  actionLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '700' },
 } as const;
