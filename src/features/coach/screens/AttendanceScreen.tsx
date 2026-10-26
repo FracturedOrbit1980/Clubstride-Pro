@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, View, type TextStyle, type ViewStyle } from 'react-native';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useAuth } from '../../../core/context/AuthContext';
 import { stableRowId, useSyncQueue } from '../../../core/sync';
 import { supabase } from '../../../core/supabaseClient';
@@ -18,7 +20,9 @@ import {
   type AttendanceStatus,
 } from '../attendance/attendance';
 import { cacheKey, readCache, writeCache } from '../attendance/cache';
+import { attendanceRegisterFileName, buildAttendanceRegisterPdf } from '../attendance/register';
 import { parseSquadRows, type SquadPlayerRow } from '../attendance/squad';
+import { ci } from '../../shared/ci';
 import {
   parseTrainingSettings,
   pickNewerTrainingSettings,
@@ -39,6 +43,18 @@ import {
 type Phase = 'loading' | 'ready';
 
 const mergeFailure = (parts: string[]): string | null => (parts.length === 0 ? null : parts.join(' '));
+
+const downloadRegisterOnWeb = (bytes: Uint8Array<ArrayBuffer>, fileName: string): void => {
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+};
 
 /**
  * Attendance is taken per session, not per week: the strip picks a training day, then every
@@ -70,6 +86,8 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
   const [baseError, setBaseError] = useState<string | null>(null);
   const [weekError, setWeekError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const recordsRef = useRef<AttendanceMap>({});
   const trainingRef = useRef<TrainingSettings>({ days: [], recordedAt: null });
@@ -115,6 +133,7 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
       setBaseError(null);
       setWeekError(null);
       setSaveError(null);
+      setExportError(null);
       if (teamId && userId) setPhase('loading');
     }
 
@@ -305,6 +324,46 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
     persistRecords(next);
   };
 
+  const exportRegister = async (): Promise<void> => {
+    if (exporting || !membership || sessions.length === 0 || players.length === 0) return;
+    setExportError(null);
+    setExporting(true);
+    try {
+      const bytes = buildAttendanceRegisterPdf({
+        teamName: membership.teamName,
+        weekStart,
+        trainingDays: training.days,
+        sessions,
+        players,
+        records: recordsRef.current,
+      });
+      const fileName = attendanceRegisterFileName(membership.teamName, weekStart);
+      if (Platform.OS === 'web') {
+        downloadRegisterOnWeb(bytes, fileName);
+      } else {
+        const file = new File(Paths.cache, fileName);
+        if (file.exists) file.delete();
+        await file.write(bytes);
+        if (!(await Sharing.isAvailableAsync())) {
+          throw new Error('Sharing is not available on this device.');
+        }
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Attendance register',
+          UTI: 'com.adobe.pdf',
+        });
+      }
+    } catch (error) {
+      setExportError(
+        `The register PDF was not created: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const canExport = sessions.length > 0 && players.length > 0;
+
   const roleLabel = membership
     ? membership.role === 'manager'
       ? 'Manager'
@@ -328,7 +387,7 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
         </View>
       </View>
 
-      {phase === 'loading' ? <ActivityIndicator color="#facc15" /> : null}
+      {phase === 'loading' ? <ActivityIndicator color={ci.color.primary} /> : null}
 
       {phase === 'ready' && !membership ? (
         <View style={styles.card}>
@@ -399,6 +458,28 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
                 );
               })}
             </View>
+
+            {canExport ? (
+              <Pressable
+                onPress={() => void exportRegister()}
+                disabled={exporting}
+                accessibilityRole="button"
+                accessibilityLabel="Export this week's attendance register as a PDF"
+                style={[styles.exportButton, exporting && styles.exportButtonOff]}
+              >
+                <Text style={styles.exportLabel}>
+                  {exporting ? 'Preparing register...' : 'Export register PDF'}
+                </Text>
+              </Pressable>
+            ) : null}
+            {canExport ? (
+              <Text style={styles.exportHint}>
+                {Platform.OS === 'web'
+                  ? "Downloads this week's register as a PDF."
+                  : 'Shares a PDF you can save or send.'}
+              </Text>
+            ) : null}
+            {exportError ? <Text style={styles.error}>{exportError}</Text> : null}
           </View>
 
           {baseError || weekError ? (
@@ -511,105 +592,116 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
 };
 
 const STATUS_ON: Record<AttendanceStatus, { button: ViewStyle; label: TextStyle }> = {
-  present: { button: { backgroundColor: '#166534', borderColor: '#22c55e' }, label: { color: '#dcfce7' } },
-  late: { button: { backgroundColor: '#92400e', borderColor: '#f59e0b' }, label: { color: '#fef3c7' } },
-  absent: { button: { backgroundColor: '#7f1d1d', borderColor: '#ef4444' }, label: { color: '#fee2e2' } },
-  excused: { button: { backgroundColor: '#334155', borderColor: '#64748b' }, label: { color: '#e2e8f0' } },
+  present: { button: { backgroundColor: ci.color.go, borderColor: ci.color.go }, label: { color: ci.color.onGo } },
+  late: { button: { backgroundColor: ci.color.warning, borderColor: ci.color.warning }, label: { color: ci.color.onWarning } },
+  absent: { button: { backgroundColor: ci.color.danger, borderColor: ci.color.danger }, label: { color: ci.color.onDanger } },
+  excused: { button: { backgroundColor: ci.color.disabledBg, borderColor: ci.color.borderInput }, label: { color: ci.color.text } },
 };
 
 const styles = {
-  screen: { padding: 16, gap: 12, backgroundColor: '#0b0f17' },
+  screen: { padding: 16, gap: 12, backgroundColor: ci.color.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#1b1b22' },
-  backLabel: { color: '#facc15', fontSize: 13, fontWeight: '700' },
+  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
+  backLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '700' },
   headerText: { flex: 1 },
-  title: { color: '#e2e8f0', fontSize: 22, fontWeight: '800' },
-  headerMeta: { color: '#94a3b8', fontSize: 13, marginTop: 2 },
-  card: { padding: 14, borderRadius: 14, backgroundColor: '#1b1b22', gap: 10 },
-  cardTitle: { color: '#e2e8f0', fontSize: 16, fontWeight: '800' },
-  meta: { color: '#cbd5e1', fontSize: 13, lineHeight: 19 },
-  secondary: { paddingVertical: 12, borderRadius: 10, backgroundColor: '#263043', alignItems: 'center' },
-  secondaryLabel: { color: '#e2e8f0', fontSize: 14, fontWeight: '700' },
-  weekCard: { padding: 12, borderRadius: 14, backgroundColor: '#1b1b22', gap: 12 },
+  title: { color: ci.color.text, fontSize: 22, fontWeight: '800' },
+  headerMeta: { color: ci.color.muted, fontSize: 13, marginTop: 2 },
+  card: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 10 },
+  cardTitle: { color: ci.color.text, fontSize: 16, fontWeight: '800' },
+  meta: { color: ci.color.muted, fontSize: 13, lineHeight: 19 },
+  secondary: { paddingVertical: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center' },
+  secondaryLabel: { color: ci.color.text, fontSize: 14, fontWeight: '700' },
+  weekCard: { padding: 12, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 12 },
   weekNav: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   weekArrow: {
     width: 38,
     height: 38,
-    borderRadius: 10,
-    backgroundColor: '#111827',
+    borderRadius: ci.radius.control,
+    backgroundColor: ci.color.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  weekArrowLabel: { color: '#facc15', fontSize: 22, fontWeight: '800', lineHeight: 24 },
+  weekArrowLabel: { color: ci.color.primary, fontSize: 22, fontWeight: '800', lineHeight: 24 },
   weekTitle: { flex: 1, alignItems: 'center', gap: 2 },
-  weekRange: { color: '#e2e8f0', fontSize: 15, fontWeight: '800' },
-  weekMeta: { color: '#94a3b8', fontSize: 12 },
-  weekLink: { color: '#facc15', fontSize: 12, fontWeight: '700' },
+  weekRange: { color: ci.color.text, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums' as const] },
+  weekMeta: { color: ci.color.muted, fontSize: 12 },
+  weekLink: { color: ci.color.primary, fontSize: 12, fontWeight: '700' },
   dayRow: { flexDirection: 'row', gap: 4 },
   day: {
     flex: 1,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: ci.radius.control,
     alignItems: 'center',
     gap: 2,
-    backgroundColor: '#111827',
+    backgroundColor: ci.color.background,
     borderWidth: 1,
-    borderColor: '#273449',
+    borderColor: ci.color.border,
   },
-  daySelected: { backgroundColor: '#facc15', borderColor: '#facc15' },
+  daySelected: { backgroundColor: ci.color.accent, borderColor: ci.color.accent },
+  exportButton: {
+    paddingVertical: 11,
+    borderRadius: ci.radius.control,
+    borderWidth: 1,
+    borderColor: ci.color.primary,
+    backgroundColor: ci.color.background,
+    alignItems: 'center',
+  },
+  exportButtonOff: { opacity: 0.5 },
+  exportLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '800' },
+  exportHint: { color: ci.color.muted, fontSize: 11, lineHeight: 16, textAlign: 'center' },
   dayOff: { opacity: 0.35 },
-  dayToday: { borderColor: '#facc15' },
-  dayName: { color: '#94a3b8', fontSize: 10, fontWeight: '700' },
-  dayNumber: { color: '#e2e8f0', fontSize: 15, fontWeight: '800' },
-  daySelectedText: { color: '#111115' },
-  warningCard: { padding: 12, borderRadius: 12, backgroundColor: '#1b1b22', gap: 8 },
-  error: { color: '#f87171', fontSize: 13, lineHeight: 19 },
-  notice: { color: '#facc15', fontSize: 13, lineHeight: 19 },
-  retry: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#111827', alignSelf: 'flex-start' },
-  retryLabel: { color: '#facc15', fontSize: 14, fontWeight: '700' },
-  sessionCard: { padding: 14, borderRadius: 14, backgroundColor: '#1b1b22', gap: 10 },
+  dayToday: { borderColor: ci.color.accent },
+  dayName: { color: ci.color.muted, fontSize: 10, fontWeight: '700' },
+  dayNumber: { color: ci.color.text, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums' as const] },
+  daySelectedText: { color: ci.color.onAccent },
+  warningCard: { padding: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.surface, gap: 8 },
+  error: { color: ci.color.danger, fontSize: 13, lineHeight: 19 },
+  notice: { color: ci.color.warning, fontSize: 13, lineHeight: 19 },
+  retry: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start' },
+  retryLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '700' },
+  sessionCard: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 10 },
   sessionHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   sessionText: { flex: 1, gap: 3 },
-  sessionDate: { color: '#e2e8f0', fontSize: 17, fontWeight: '800' },
-  sessionCounts: { color: '#cbd5e1', fontSize: 13 },
+  sessionDate: { color: ci.color.text, fontSize: 17, fontWeight: '800' },
+  sessionCounts: { color: ci.color.muted, fontSize: 13, fontVariant: ['tabular-nums' as const] },
   rateBadge: {
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: '#111827',
+    borderRadius: ci.radius.control,
+    backgroundColor: ci.color.background,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#273449',
+    borderColor: ci.color.border,
   },
-  rateValue: { color: '#facc15', fontSize: 17, fontWeight: '800' },
-  rateLabel: { color: '#94a3b8', fontSize: 10, fontWeight: '700' },
+  rateValue: { color: ci.color.accent, fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums' as const] },
+  rateLabel: { color: ci.color.muted, fontSize: 10, fontWeight: '700' },
   sessionFooter: { gap: 6 },
-  saveHint: { color: '#94a3b8', fontSize: 12, lineHeight: 17 },
-  link: { color: '#facc15', fontSize: 12, fontWeight: '700' },
-  playerRow: { padding: 12, borderRadius: 14, backgroundColor: '#1b1b22', gap: 10 },
+  saveHint: { color: ci.color.muted, fontSize: 12, lineHeight: 17 },
+  link: { color: ci.color.primary, fontSize: 12, fontWeight: '700' },
+  playerRow: { padding: 12, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 10 },
   playerHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   shirt: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#facc15',
+    backgroundColor: ci.color.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shirtLabel: { color: '#0b0f17', fontSize: 14, fontWeight: '800' },
+  shirtLabel: { color: ci.color.onAccent, fontSize: 14, fontWeight: '800' },
   playerText: { flex: 1, gap: 2 },
-  playerName: { color: '#e2e8f0', fontSize: 15, fontWeight: '700' },
-  playerMeta: { color: '#94a3b8', fontSize: 12 },
-  playerStatus: { color: '#facc15', fontSize: 12, fontWeight: '700' },
+  playerName: { color: ci.color.text, fontSize: 15, fontWeight: '700' },
+  playerMeta: { color: ci.color.muted, fontSize: 12 },
+  playerStatus: { color: ci.color.accent, fontSize: 12, fontWeight: '700' },
   statusRow: { flexDirection: 'row', gap: 6 },
   status: {
     flex: 1,
     paddingVertical: 9,
-    borderRadius: 9,
+    borderRadius: ci.radius.control,
     alignItems: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: ci.color.background,
     borderWidth: 1,
-    borderColor: '#273449',
+    borderColor: ci.color.border,
   },
-  statusLabel: { color: '#94a3b8', fontSize: 11, fontWeight: '700' },
+  statusLabel: { color: ci.color.muted, fontSize: 11, fontWeight: '700' },
 } as const;

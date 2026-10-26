@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { useAuth } from '../../../core/context/AuthContext';
 import { supabase } from '../../../core/supabaseClient';
+import { ci } from '../../shared/ci';
 
 interface PlayerRow {
   id: string;
@@ -84,7 +85,7 @@ export const SquadScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         <Text style={styles.meta}>This account is not on a squad yet.</Text>
       )}
 
-      {phase === 'loading' ? <ActivityIndicator color="#facc15" /> : null}
+      {phase === 'loading' ? <ActivityIndicator color={ci.color.primary} /> : null}
 
       {phase === 'failed' ? (
         <View style={styles.card}>
@@ -123,21 +124,21 @@ export const SquadScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 };
 
 const styles = {
-  screen: { padding: 16, gap: 12, backgroundColor: '#0b0f17' },
+  screen: { padding: 16, gap: 12, backgroundColor: ci.color.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#1b1b22' },
-  backLabel: { color: '#facc15', fontSize: 13, fontWeight: '700' },
-  title: { color: '#e2e8f0', fontSize: 22, fontWeight: '800' },
-  card: { padding: 12, borderRadius: 12, backgroundColor: '#1b1b22', gap: 4 },
-  label: { color: '#94a3b8', fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
-  teamName: { color: '#e2e8f0', fontSize: 17, fontWeight: '800' },
-  meta: { color: '#cbd5e1', fontSize: 13 },
-  error: { color: '#f87171', fontSize: 13 },
-  retry: { marginTop: 4, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#1b1b22', alignSelf: 'flex-start' },
-  retryLabel: { color: '#facc15', fontSize: 14, fontWeight: '700' },
-  playerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, backgroundColor: '#1b1b22' },
-  shirt: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#facc15', alignItems: 'center', justifyContent: 'center' },
-  shirtLabel: { color: '#0b0f17', fontSize: 15, fontWeight: '800' },
+  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
+  backLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '700' },
+  title: { color: ci.color.text, fontSize: 22, fontWeight: '800' },
+  card: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 4 },
+  label: { color: ci.color.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
+  teamName: { color: ci.color.text, fontSize: 17, fontWeight: '800' },
+  meta: { color: ci.color.muted, fontSize: 13 },
+  error: { color: ci.color.danger, fontSize: 13 },
+  retry: { marginTop: 4, paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start' },
+  retryLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '700' },
+  playerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: ci.radius.card, backgroundColor: ci.color.surface },
+  shirt: { width: 38, height: 38, borderRadius: 19, backgroundColor: ci.color.accent, alignItems: 'center', justifyContent: 'center' },
+  shirtLabel: { color: ci.color.onAccent, fontSize: 15, fontWeight: '800' },
   playerText: { flex: 1, gap: 2 },
-  playerName: { color: '#e2e8f0', fontSize: 15, fontWeight: '700' },
+  playerName: { color: ci.color.text, fontSize: 15, fontWeight: '700' },
 } as const;

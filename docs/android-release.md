@@ -28,6 +28,12 @@ Proved on 2026-10-23: `tsc --noEmit` clean against the real React 19 / RN 0.88 t
 (`supabaseClient.ts` throws at import until one does), there is no in-app sign-up, and the two
 migrations have never been applied - Supabase still has no schema at all.
 
+**Superseded on 2026-10-26:** that snapshot predates the auth work. The schema and both Pro migrations
+are applied, sign-up / forgot-password / reset-password screens exist, `.env` points at the real
+project, and **Confirm email is off** (`mailer_autoconfirm` → true), so a new account is signed in the
+moment it registers. Still true: nothing has run on a device, and there is no SMTP, so password-reset
+mail does not deliver.
+
 ---
 
 ## 1. Four places the spec could not be implemented as written
@@ -292,8 +298,9 @@ Play Console work is yours; none of it can be done from here.
 - [ ] Settings is reachable from every role and tier - `App.tsx` renders it for any `ready` session,
       so this is by construction, but confirm it on the phone - and the button deletes the account it
       is signed into.
-- [ ] A test coach account exists in the Supabase dashboard. There is **no in-app sign-up**, so until
-      one is added every tester and every Play reviewer needs an account created by hand.
+- [ ] Sign-up on the release build creates an account and lands signed in with no confirmation mail
+      (Confirm email off since 2026-10-26, verified server-side). Reviewers can self-register, but still
+      hand one a pre-made coach account: there is no SMTP, so a mistyped address cannot be recovered.
 - [ ] `.env` (local) or the `production` EAS variables (cloud) actually hold a real project URL and
       anon key. `supabaseClient.ts` throws at import otherwise, which means a red launch screen - the
       intended failure, but a failure the build cannot catch.

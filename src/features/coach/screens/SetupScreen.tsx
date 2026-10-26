@@ -4,6 +4,7 @@ import { useAuth } from '../../../core/context/AuthContext';
 import { useSyncQueue } from '../../../core/sync';
 import { supabase } from '../../../core/supabaseClient';
 import { cacheKey, readCache, writeCache } from '../attendance/cache';
+import { ci } from '../../shared/ci';
 import {
   formatTrainingDays,
   normalizeTrainingDays,
@@ -214,7 +215,7 @@ export const SetupScreen: React.FC<{ onBack: () => void; onOpenAttendance: () =>
         </Pressable>
       ) : null}
 
-      {phase === 'loading' ? <ActivityIndicator color="#facc15" /> : null}
+      {phase === 'loading' ? <ActivityIndicator color={ci.color.primary} /> : null}
 
       {savedNote ? <Text style={styles.saved}>{savedNote}</Text> : null}
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
@@ -232,42 +233,42 @@ export const SetupScreen: React.FC<{ onBack: () => void; onOpenAttendance: () =>
 };
 
 const styles = {
-  screen: { padding: 16, gap: 12, backgroundColor: '#0b0f17' },
+  screen: { padding: 16, gap: 12, backgroundColor: ci.color.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#1b1b22' },
-  backLabel: { color: '#facc15', fontSize: 13, fontWeight: '700' },
+  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
+  backLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '700' },
   headerText: { flex: 1 },
-  title: { color: '#e2e8f0', fontSize: 22, fontWeight: '800' },
-  headerMeta: { color: '#94a3b8', fontSize: 13, marginTop: 2 },
-  card: { padding: 14, borderRadius: 14, backgroundColor: '#1b1b22', gap: 10 },
-  cardTitle: { color: '#e2e8f0', fontSize: 16, fontWeight: '800' },
-  label: { color: '#94a3b8', fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
-  meta: { color: '#cbd5e1', fontSize: 13, lineHeight: 19 },
+  title: { color: ci.color.text, fontSize: 22, fontWeight: '800' },
+  headerMeta: { color: ci.color.muted, fontSize: 13, marginTop: 2 },
+  card: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 10 },
+  cardTitle: { color: ci.color.text, fontSize: 16, fontWeight: '800' },
+  label: { color: ci.color.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
+  meta: { color: ci.color.muted, fontSize: 13, lineHeight: 19 },
   weekdayRow: { flexDirection: 'row', gap: 6 },
   weekday: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: ci.radius.control,
     alignItems: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: ci.color.background,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: ci.color.border,
   },
-  weekdaySelected: { backgroundColor: '#facc15', borderColor: '#facc15' },
+  weekdaySelected: { backgroundColor: ci.color.accent, borderColor: ci.color.accent },
   weekdayLocked: { opacity: 0.6 },
-  weekdayLabel: { color: '#cbd5e1', fontSize: 12, fontWeight: '800' },
-  weekdayLabelSelected: { color: '#111115' },
-  summary: { color: '#e2e8f0', fontSize: 14, fontWeight: '600' },
-  readOnly: { color: '#facc15', fontSize: 13 },
-  save: { paddingVertical: 12, borderRadius: 10, backgroundColor: '#facc15', alignItems: 'center' },
-  saveIdle: { backgroundColor: '#263043' },
-  saveLabel: { color: '#111115', fontSize: 15, fontWeight: '800' },
-  saveLabelIdle: { color: '#94a3b8' },
-  secondary: { padding: 12, borderRadius: 10, backgroundColor: '#1b1b22', alignItems: 'center' },
-  secondaryLabel: { color: '#e2e8f0', fontSize: 15, fontWeight: '700' },
-  saved: { color: '#86efac', fontSize: 13 },
-  notice: { color: '#facc15', fontSize: 13, lineHeight: 19 },
-  error: { color: '#f87171', fontSize: 13, lineHeight: 19 },
-  retry: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#111827', alignSelf: 'flex-start' },
-  retryLabel: { color: '#facc15', fontSize: 14, fontWeight: '700' },
+  weekdayLabel: { color: ci.color.muted, fontSize: 12, fontWeight: '800' },
+  weekdayLabelSelected: { color: ci.color.onAccent },
+  summary: { color: ci.color.text, fontSize: 14, fontWeight: '600' },
+  readOnly: { color: ci.color.warning, fontSize: 13 },
+  save: { paddingVertical: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.primary, alignItems: 'center' },
+  saveIdle: { backgroundColor: ci.color.disabledBg },
+  saveLabel: { color: ci.color.onPrimary, fontSize: 15, fontWeight: '800' },
+  saveLabelIdle: { color: ci.color.disabledText },
+  secondary: { padding: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center' },
+  secondaryLabel: { color: ci.color.text, fontSize: 15, fontWeight: '700' },
+  saved: { color: ci.color.go, fontSize: 13 },
+  notice: { color: ci.color.warning, fontSize: 13, lineHeight: 19 },
+  error: { color: ci.color.danger, fontSize: 13, lineHeight: 19 },
+  retry: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start' },
+  retryLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '700' },
 } as const;
