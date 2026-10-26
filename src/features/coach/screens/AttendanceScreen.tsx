@@ -20,7 +20,7 @@ import {
   type AttendanceStatus,
 } from '../attendance/attendance';
 import { cacheKey, readCache, writeCache } from '../attendance/cache';
-import { buildAttendanceRegisterHtml } from '../attendance/register';
+import { buildAttendanceRegisterHtml, ATTENDANCE_REGISTER_PAGE } from '../attendance/register';
 import { parseSquadRows, type SquadPlayerRow } from '../attendance/squad';
 import {
   parseTrainingSettings,
@@ -98,6 +98,28 @@ const printRegisterOnWeb = (html: string): void => {
   // A print dialog that never closes must not leave the register pinned to the app.
   setTimeout(cleanup, 60000);
 };
+
+const REGISTER_PDF_MIN_BASE64 = 8000;
+
+const createRegisterPdf = (
+  html: string,
+  useMarkupFormatter = false,
+): Promise<Print.FilePrintResult> =>
+  Print.printToFileAsync({
+    html,
+    width: ATTENDANCE_REGISTER_PAGE.width,
+    height: ATTENDANCE_REGISTER_PAGE.height,
+    base64: true,
+    ...(useMarkupFormatter ? { useMarkupFormatter: true } : {}),
+  });
+
+/**
+ * A renderer that draws nothing still resolves: iOS can lay out zero pages, and Android can
+ * write an empty document. Both are far smaller than a real register, which carries fonts and
+ * the table, so a page-less or tiny PDF counts as a failed render and is never shared.
+ */
+const isBlankPdf = (file: Print.FilePrintResult): boolean =>
+  file.numberOfPages < 1 || (file.base64?.length ?? 0) < REGISTER_PDF_MIN_BASE64;
 
 /**
  * Attendance is taken per session, not per week: the strip picks a training day, then every
@@ -383,15 +405,35 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
       if (Platform.OS === 'web') {
         printRegisterOnWeb(html);
       } else {
-        const { uri } = await Print.printToFileAsync({ html });
+        let pdf = await createRegisterPdf(html);
+        if (isBlankPdf(pdf) && Platform.OS === 'ios') {
+          // The default WKWebView formatter depends on the web view's own layout, which can
+          // yield no pages. Expo's other iOS renderer is not tied to the view.
+          pdf = await createRegisterPdf(html, true);
+        }
+        if (isBlankPdf(pdf)) {
+          // The system print sheet drives its own layout and write, so it can still save the
+          // register as a PDF where the direct file renderer returned nothing.
+          await Print.printAsync({
+            html,
+            width: ATTENDANCE_REGISTER_PAGE.width,
+            height: ATTENDANCE_REGISTER_PAGE.height,
+            ...(Platform.OS === 'ios' ? { useMarkupFormatter: true } : {}),
+          });
+          return;
+        }
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(uri, {
+          await Sharing.shareAsync(pdf.uri, {
             mimeType: 'application/pdf',
             dialogTitle: 'Attendance register',
             UTI: 'com.adobe.pdf',
           });
         } else {
-          await Print.printAsync({ html });
+          await Print.printAsync({
+            html,
+            width: ATTENDANCE_REGISTER_PAGE.width,
+            height: ATTENDANCE_REGISTER_PAGE.height,
+          });
         }
       }
     } catch (error) {

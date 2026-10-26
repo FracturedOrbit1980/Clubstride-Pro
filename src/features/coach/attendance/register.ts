@@ -20,6 +20,15 @@ import { parseIso } from './week';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+/**
+ * A4 in points, the unit Expo Print uses for the native paper. The CSS page below must agree
+ * with it: when the document asks for one paper size and the renderer hands it another,
+ * WebView print output can come back mangled or empty. Margins live on the sheet, not on
+ * @page, so the same HTML keeps its margins in a zero-margin native renderer.
+ */
+export const ATTENDANCE_REGISTER_PAGE = { width: 595, height: 842 } as const;
+const PAGE_MARGIN_PT = 34; // 12mm
+
 const STATUS_ABBREVIATION: Record<AttendanceStatus, string> = {
   present: 'P',
   late: 'L',
@@ -175,7 +184,7 @@ export function buildAttendanceRegisterHtml(input: AttendanceRegisterInput): str
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeHtml(title)}</title>
 <style>
-  @page { size: A4 portrait; margin: 12mm; }
+  @page { size: ${ATTENDANCE_REGISTER_PAGE.width}pt ${ATTENDANCE_REGISTER_PAGE.height}pt; margin: 0; }
   * { box-sizing: border-box; }
   body {
     margin: 0;
@@ -187,7 +196,7 @@ export function buildAttendanceRegisterHtml(input: AttendanceRegisterInput): str
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .sheet { max-width: 186mm; margin: 0 auto; padding: 6mm 0; }
+  .sheet { max-width: ${ATTENDANCE_REGISTER_PAGE.width}pt; margin: 0 auto; padding: ${PAGE_MARGIN_PT}pt ${PAGE_MARGIN_PT}pt ${PAGE_MARGIN_PT - 6}pt; }
   header {
     display: flex;
     justify-content: space-between;

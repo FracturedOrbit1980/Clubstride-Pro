@@ -20,7 +20,7 @@ import {
   type AttendanceMap,
   type AttendanceRow,
 } from '../src/features/coach/attendance/attendance';
-import { buildAttendanceRegisterHtml } from '../src/features/coach/attendance/register';
+import { ATTENDANCE_REGISTER_PAGE, buildAttendanceRegisterHtml } from '../src/features/coach/attendance/register';
 import { parseSquadRows } from '../src/features/coach/attendance/squad';
 import { stableRowId, uuidV5 } from '../src/core/sync/stableId';
 import { assertQueuedPayload } from '../src/core/sync/contracts';
@@ -211,6 +211,12 @@ async function main(): Promise<void> {
   const occurrences = (haystack: string, needle: string): number => haystack.split(needle).length - 1;
 
   assert('the register names the squad and the week', registerHtml.includes('Clubstride FC') && registerHtml.includes('Week of 2026-10-19'));
+  assert(
+    'the register page is the A4 paper the native export asks for, with margins on the sheet',
+    registerHtml.includes(
+      `@page { size: ${ATTENDANCE_REGISTER_PAGE.width}pt ${ATTENDANCE_REGISTER_PAGE.height}pt; margin: 0; }`,
+    ) && registerHtml.includes(`max-width: ${ATTENDANCE_REGISTER_PAGE.width}pt`),
+  );
   assert(
     'the register spells the training days out',
     registerHtml.includes('Training days: Mon, Wed, Fri') && registerHtml.includes('MON 19 OCT') && registerHtml.includes('WED 21 OCT') && registerHtml.includes('FRI 23 OCT'),
