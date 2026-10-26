@@ -13,8 +13,8 @@ Fill every `[TODO]` before the listing goes live. Character limits are Play's.
 | Tags | sports, coaching, football |
 | Contact email | support@clubstride.com |
 | Website (optional) | https://fracturedorbit1980.github.io/Clubstride-Pro-Web/ |
-| Privacy policy URL | `[TODO: published privacy-policy.html URL]` |
-| Account deletion URL | `[TODO: published delete-account.html URL]` |
+| Privacy policy URL | https://fracturedorbit1980.github.io/Clubstride-Pro-Web/privacy-policy.html |
+| Account deletion URL | https://fracturedorbit1980.github.io/Clubstride-Pro-Web/delete-account.html |
 
 ## Short description (80)
 
