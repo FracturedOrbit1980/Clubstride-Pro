@@ -22,7 +22,7 @@ health info, messages, audio.
 - **Encrypted at rest:** data is stored in a managed Postgres service
   (Supabase) with encryption at rest.
 - **Users can request deletion:** yes.
-  - Deletion URL: `[TODO: delete-account.html URL]`
+  - Deletion URL: https://fracturedorbit1980.github.io/Clubstride-Pro-Web/delete-account.html
   - In-app path: Settings → Delete account.
 - **Data sold:** no.
 - **Data used for advertising:** no.
