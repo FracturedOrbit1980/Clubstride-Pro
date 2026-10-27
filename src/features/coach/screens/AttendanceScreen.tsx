@@ -26,9 +26,9 @@ import { ci } from '../../shared/ci';
 import {
   DEMO_MEMBERSHIP,
   DEMO_PLAYERS,
-  DEMO_TRAINING,
   DEMO_USER_ID,
   demoAttendance,
+  previewTrainingSettings,
 } from '../../shared/demo';
 import {
   parseTrainingSettings,
@@ -124,9 +124,9 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
 
   useEffect(() => {
     if (preview) {
-      trainingRef.current = DEMO_TRAINING;
+      trainingRef.current = previewTrainingSettings();
       setPlayers(DEMO_PLAYERS);
-      setTraining(DEMO_TRAINING);
+      setTraining(trainingRef.current);
       setPhase('ready');
       return;
     }

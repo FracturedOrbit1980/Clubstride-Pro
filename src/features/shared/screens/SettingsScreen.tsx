@@ -4,6 +4,7 @@ import { useAuth } from '../../../core/context/AuthContext';
 import { useSyncQueue } from '../../../core/sync';
 import { supabase } from '../../../core/supabaseClient';
 import { BrandLockup } from '../components/BrandLockup';
+import { TrainingDaysCard } from '../../coach/components/TrainingDaysCard';
 import { ci } from '../ci';
 import type { AppMode } from '../appMode';
 
@@ -113,6 +114,8 @@ export const SettingsScreen: React.FC<{
         </Text>
         {modeError ? <Text style={styles.modeError}>{modeError}</Text> : null}
       </View>
+
+      <TrainingDaysCard />
 
       <View style={styles.card}>
         <Text style={styles.label}>Data on this phone</Text>

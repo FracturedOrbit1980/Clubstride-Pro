@@ -13,7 +13,7 @@ import {
   type TrainingSettings,
 } from '../attendance/trainingDays';
 import { formatWeekRange, mondayOf, sessionToday } from '../attendance/week';
-import { DEMO_MEMBERSHIP, DEMO_PLAYERS, DEMO_TRAINING, DEMO_USER_ID } from '../../shared/demo';
+import { DEMO_MEMBERSHIP, DEMO_PLAYERS, DEMO_USER_ID, previewTrainingSettings } from '../../shared/demo';
 
 type Phase = 'loading' | 'ready';
 
@@ -40,7 +40,7 @@ export const LiteWeekScreen: React.FC<{
   useEffect(() => {
     if (preview) {
       setPlayers(DEMO_PLAYERS);
-      setTraining(DEMO_TRAINING);
+      setTraining(previewTrainingSettings());
       setPhase('ready');
       return;
     }

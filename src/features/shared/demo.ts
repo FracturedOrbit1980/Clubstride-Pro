@@ -45,6 +45,18 @@ export const DEMO_TRAINING: TrainingSettings = {
   recordedAt: '2026-10-26T16:00:00.000Z',
 };
 
+/**
+ * Tabs unmount on switch, so a day change saved in Settings has to outlive that screen or
+ * Training and the register would disagree with it. Preview edits last for the session only.
+ */
+let previewTraining: TrainingSettings = DEMO_TRAINING;
+
+export const previewTrainingSettings = (): TrainingSettings => previewTraining;
+
+export const savePreviewTraining = (next: TrainingSettings): void => {
+  previewTraining = next;
+};
+
 export const DEMO_DRILLS: Drill[] = [
   { id: 'preview-drill-1', name: 'Rondo 4v2', focus: 'Passing', minutes: 15, notes: 'Two touches maximum.' },
   { id: 'preview-drill-2', name: 'First-touch gates', focus: 'First touch', minutes: 12, notes: null },
@@ -62,7 +74,7 @@ const DEMO_STATUSES: AttendanceStatus[] = [
 /** Only sessions that have already happened get marks, so an open week is not pre-filled. */
 export const demoAttendance = (weekStart: string, today: string): AttendanceRow[] => {
   const rows: AttendanceRow[] = [];
-  for (const date of sessionsInWeek(weekStart, DEMO_TRAINING.days)) {
+  for (const date of sessionsInWeek(weekStart, previewTraining.days)) {
     if (date > today) continue;
     DEMO_PLAYERS.forEach((entry, index) => {
       rows.push({
