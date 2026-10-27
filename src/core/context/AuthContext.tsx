@@ -62,6 +62,8 @@ interface AuthContextValue {
   googleAvailable: boolean;
   recovery: RecoveryState;
   clearRecovery: () => void;
+  /** Signed out: the app runs on the bundled sample squad instead of the club database. */
+  preview: boolean;
   linkError: string | null;
   clearLinkError: () => void;
   signOut: () => Promise<void>;
@@ -404,6 +406,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       tier,
       memberships,
       status,
+      preview: status === 'signedOut',
       roleForTeam: teamId => memberships.find(m => m.teamId === teamId)?.role ?? null,
       isStaff: teamId => {
         const role = memberships.find(m => m.teamId === teamId)?.role;

@@ -13,9 +13,11 @@ import {
 interface SignInScreenProps {
   onCreateAccount: () => void;
   onForgotPassword: () => void;
+  /** Only passed while signed out, so the preview can be returned to without an account. */
+  onBack?: () => void;
 }
 
-export const SignInScreen: React.FC<SignInScreenProps> = ({ onCreateAccount, onForgotPassword }) => {
+export const SignInScreen: React.FC<SignInScreenProps> = ({ onCreateAccount, onForgotPassword, onBack }) => {
   const { signIn, signInWithGoogle, googleAvailable, linkError, clearLinkError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -112,6 +114,12 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onCreateAccount, onF
         <Text style={authStyles.muted}>New to Clubstride?</Text>
         <LinkButton label="Create an account" onPress={onCreateAccount} />
       </View>
+
+      {onBack ? (
+        <View style={authStyles.linkRow}>
+          <LinkButton label="Back to preview" onPress={onBack} />
+        </View>
+      ) : null}
     </AuthScreen>
   );
 };

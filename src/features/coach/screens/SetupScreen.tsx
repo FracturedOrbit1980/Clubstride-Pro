@@ -5,6 +5,7 @@ import { loadOutbox, mintRowId, outboxStorageKey, useSyncQueue } from '../../../
 import { supabase } from '../../../core/supabaseClient';
 import { cacheKey, readCache, writeCache } from '../attendance/cache';
 import { ci } from '../../shared/ci';
+import { DEMO_DRILLS, DEMO_MEMBERSHIP, DEMO_TRAINING, DEMO_USER_ID } from '../../shared/demo';
 import {
   formatTrainingDays,
   normalizeTrainingDays,
@@ -45,12 +46,12 @@ type Pane = { kind: 'list' } | { kind: 'edit'; draft: DrillDraft } | { kind: 'ru
  * says so, because the setup screen is often used at a ground with no signal.
  */
 export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpenAttendance }) => {
-  const { memberships, user, isStaff } = useAuth();
+  const { memberships, user, isStaff, preview } = useAuth();
   const { queue } = useSyncQueue();
-  const membership = memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
+  const membership = preview ? DEMO_MEMBERSHIP : memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
   const teamId = membership?.teamId ?? null;
-  const userId = user?.id ?? null;
-  const canEdit = teamId !== null && isStaff(teamId);
+  const userId = preview ? DEMO_USER_ID : user?.id ?? null;
+  const canEdit = preview || (teamId !== null && isStaff(teamId));
 
   const [days, setDays] = useState<TrainingWeekday[]>([]);
   const [saved, setSaved] = useState<TrainingSettings>({ days: [], recordedAt: null });
@@ -67,6 +68,12 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
   const [pane, setPane] = useState<Pane>({ kind: 'list' });
 
   const load = useCallback(async () => {
+    if (preview) {
+      setSaved(DEMO_TRAINING);
+      setDays(DEMO_TRAINING.days);
+      setPhase('ready');
+      return;
+    }
     if (!teamId || !userId) {
       setPhase('ready');
       return;
@@ -113,7 +120,7 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
       recorded_at: winner.recordedAt,
     });
     if (warning) setNotice(warning);
-  }, [teamId, userId]);
+  }, [preview, teamId, userId]);
 
   useEffect(() => {
     void load();
@@ -130,6 +137,11 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
    * authority for those rows, so it is merged over the server's copy.
    */
   const loadDrills = useCallback(async () => {
+    if (preview) {
+      setDrills(DEMO_DRILLS);
+      setDrillsPhase('ready');
+      return;
+    }
     if (!teamId || !userId) {
       setDrills([]);
       setDrillsPhase('ready');
@@ -190,7 +202,7 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
     if (fresh.dropped > 0) setDrillNotice(`${fresh.dropped} drill row(s) came back unreadable.`);
     const warning = await writeCache(key, merged.map(toDrillRow));
     if (warning) setDrillNotice(warning);
-  }, [teamId, userId]);
+  }, [preview, teamId, userId]);
 
   useEffect(() => {
     void loadDrills();
@@ -201,6 +213,12 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
     if (!canEdit) return 'Only a coach or manager can save drills for this squad.';
     const id = draft.id ?? mintRowId();
     const drill = drillFromDraft(draft, id);
+    if (preview) {
+      setDrills(sortDrills(draft.id ? drills.map(item => (item.id === id ? drill : item)) : [...drills, drill]));
+      setPane({ kind: 'list' });
+      setDrillNotice(null);
+      return null;
+    }
     const queued = queue.enqueue({
       table: 'drills',
       rowId: id,
@@ -225,6 +243,12 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
 
   const deleteDrill = async (draft: DrillDraft): Promise<string | null> => {
     if (!draft.id) return null;
+    if (preview) {
+      setDrills(drills.filter(item => item.id !== draft.id));
+      setPane({ kind: 'list' });
+      setDrillNotice(null);
+      return null;
+    }
     const queued = queue.enqueue({
       table: 'drills',
       rowId: draft.id,
@@ -260,6 +284,12 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
     if (!teamId || !userId || !canEdit) return;
     setNotice(null);
     setSavedNote(null);
+    if (preview) {
+      setSaved({ days, recordedAt: new Date().toISOString() });
+      edited.current = false;
+      setSavedNote('Saved for this preview. Sign in to save training days for a real squad.');
+      return;
+    }
     const recordedAt = new Date().toISOString();
     const queued = queue.enqueue({
       table: 'team_settings',

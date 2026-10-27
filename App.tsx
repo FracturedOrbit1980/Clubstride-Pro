@@ -45,11 +45,13 @@ type RootView = ProTab | 'lite';
 type AuthView = 'signIn' | 'signUp' | 'forgot';
 
 const Root: React.FC = () => {
-  const { status, recovery } = useAuth();
+  const { status, recovery, preview } = useAuth();
   const [view, setView] = useState<RootView>('squad');
   const [mode, setMode] = useState<AppMode>('pro');
   const [modeReady, setModeReady] = useState(false);
   const [authView, setAuthView] = useState<AuthView>('signIn');
+  // Signed out opens on the bundled sample squad; signing in from Settings is one press away.
+  const [showAuth, setShowAuth] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -63,6 +65,10 @@ const Root: React.FC = () => {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (status !== 'signedOut') setShowAuth(false);
+  }, [status]);
 
   const changeMode = async (next: AppMode): Promise<string | null> => {
     setMode(next);
@@ -82,13 +88,18 @@ const Root: React.FC = () => {
     );
   }
 
-  if (status === 'signedOut') {
+  if (status === 'signedOut' && showAuth) {
+    const back = () => {
+      setShowAuth(false);
+      setAuthView('signIn');
+    };
     if (authView === 'signUp') return <SignUpScreen onBack={() => setAuthView('signIn')} />;
     if (authView === 'forgot') return <ForgotPasswordScreen onBack={() => setAuthView('signIn')} />;
     return (
       <SignInScreen
         onCreateAccount={() => setAuthView('signUp')}
         onForgotPassword={() => setAuthView('forgot')}
+        onBack={back}
       />
     );
   }
@@ -116,12 +127,17 @@ const Root: React.FC = () => {
   return (
     <View style={styles.screen}>
       <StatusBar style="light" />
-      <SyncStatusBanner />
+      {preview ? null : <SyncStatusBanner />}
       {mode === 'lite' && view === 'lite' ? (
         <LiteWeekScreen onOpenSettings={() => setView('settings')} onSwitchToPro={() => void changeMode('pro')} />
       ) : null}
       {mode === 'lite' && view === 'settings' ? (
-        <SettingsScreen mode={mode} onModeChange={changeMode} onOpenLite={() => setView('lite')} />
+        <SettingsScreen
+          mode={mode}
+          onModeChange={changeMode}
+          onOpenLite={() => setView('lite')}
+          onSignIn={preview ? () => setShowAuth(true) : undefined}
+        />
       ) : null}
       {mode === 'pro' ? (
         <>
@@ -133,7 +149,12 @@ const Root: React.FC = () => {
             {view === 'register' ? <AttendanceScreen onOpenSetup={() => setView('training')} /> : null}
             {view === 'training' ? <SetupScreen onOpenAttendance={() => setView('register')} /> : null}
             {view === 'settings' ? (
-              <SettingsScreen mode={mode} onModeChange={changeMode} onOpenLite={() => setView('lite')} />
+              <SettingsScreen
+                mode={mode}
+                onModeChange={changeMode}
+                onOpenLite={() => setView('lite')}
+                onSignIn={preview ? () => setShowAuth(true) : undefined}
+              />
             ) : null}
           </View>
           <TabBar active={activeTab} onChange={setView} />

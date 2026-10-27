@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { useAuth } from '../../../core/context/AuthContext';
 import { supabase } from '../../../core/supabaseClient';
 import { ci } from '../../shared/ci';
+import { DEMO_MEMBERSHIP, DEMO_PLAYERS } from '../../shared/demo';
 
 interface PlayerRow {
   id: string;
@@ -20,8 +21,8 @@ type Phase = 'loading' | 'ready' | 'failed';
  * empty squad and an unreachable backend look identical otherwise.
  */
 export const SquadScreen: React.FC = () => {
-  const { memberships } = useAuth();
-  const membership = memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
+  const { memberships, preview } = useAuth();
+  const membership = preview ? DEMO_MEMBERSHIP : memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
   const teamId = membership?.teamId ?? null;
 
   const [players, setPlayers] = useState<PlayerRow[]>([]);
@@ -29,6 +30,11 @@ export const SquadScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (preview) {
+      setPlayers(DEMO_PLAYERS);
+      setPhase('ready');
+      return;
+    }
     if (!teamId) {
       setPlayers([]);
       setPhase('ready');
@@ -50,7 +56,7 @@ export const SquadScreen: React.FC = () => {
     }
     setPlayers((data ?? []) as PlayerRow[]);
     setPhase('ready');
-  }, [teamId]);
+  }, [teamId, preview]);
 
   useEffect(() => {
     void load();

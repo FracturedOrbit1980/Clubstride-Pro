@@ -13,6 +13,7 @@ import {
   type TrainingSettings,
 } from '../attendance/trainingDays';
 import { formatWeekRange, mondayOf, sessionToday } from '../attendance/week';
+import { DEMO_MEMBERSHIP, DEMO_PLAYERS, DEMO_TRAINING, DEMO_USER_ID } from '../../shared/demo';
 
 type Phase = 'loading' | 'ready';
 
@@ -25,10 +26,10 @@ export const LiteWeekScreen: React.FC<{
   onOpenSettings: () => void;
   onSwitchToPro: () => void;
 }> = ({ onOpenSettings, onSwitchToPro }) => {
-  const { memberships, user } = useAuth();
-  const membership = memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
+  const { memberships, user, preview } = useAuth();
+  const membership = preview ? DEMO_MEMBERSHIP : memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
   const teamId = membership?.teamId ?? null;
-  const userId = user?.id ?? null;
+  const userId = preview ? DEMO_USER_ID : user?.id ?? null;
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [players, setPlayers] = useState<SquadPlayerRow[]>([]);
@@ -37,6 +38,12 @@ export const LiteWeekScreen: React.FC<{
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    if (preview) {
+      setPlayers(DEMO_PLAYERS);
+      setTraining(DEMO_TRAINING);
+      setPhase('ready');
+      return;
+    }
     if (!teamId || !userId) {
       setPhase('ready');
       return;
@@ -104,7 +111,7 @@ export const LiteWeekScreen: React.FC<{
     return () => {
       active = false;
     };
-  }, [teamId, userId, reloadKey]);
+  }, [preview, teamId, userId, reloadKey]);
 
   const roleLabel = membership
     ? membership.role === 'manager'

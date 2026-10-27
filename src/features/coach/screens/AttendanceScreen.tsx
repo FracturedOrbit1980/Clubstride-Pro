@@ -24,6 +24,13 @@ import { attendanceRegisterFileName, buildAttendanceRegisterPdf } from '../atten
 import { parseSquadRows, type SquadPlayerRow } from '../attendance/squad';
 import { ci } from '../../shared/ci';
 import {
+  DEMO_MEMBERSHIP,
+  DEMO_PLAYERS,
+  DEMO_TRAINING,
+  DEMO_USER_ID,
+  demoAttendance,
+} from '../../shared/demo';
+import {
   parseTrainingSettings,
   pickNewerTrainingSettings,
   sessionsInWeek,
@@ -65,12 +72,12 @@ const downloadRegisterOnWeb = (bytes: Uint8Array<ArrayBuffer>, fileName: string)
  * before the network is asked, and a failed refresh is shown instead of leaving a blank list.
  */
 export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpenSetup }) => {
-  const { memberships, user, isStaff } = useAuth();
+  const { memberships, user, isStaff, preview } = useAuth();
   const { queue } = useSyncQueue();
-  const membership = memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
+  const membership = preview ? DEMO_MEMBERSHIP : memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
   const teamId = membership?.teamId ?? null;
-  const userId = user?.id ?? null;
-  const canEdit = teamId !== null && isStaff(teamId);
+  const userId = preview ? DEMO_USER_ID : user?.id ?? null;
+  const canEdit = preview || (teamId !== null && isStaff(teamId));
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [reloadKey, setReloadKey] = useState(0);
@@ -93,14 +100,14 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
 
   const persistRecords = useCallback(
     (map: AttendanceMap): void => {
-      if (!userId || !teamId) return;
+      if (preview || !userId || !teamId) return;
       const key = cacheKey('attendance', userId, teamId);
       saveChain.current = saveChain.current.then(async () => {
         const warning = await writeCache(key, Object.values(map));
         if (warning) setNotice(warning);
       });
     },
-    [teamId, userId],
+    [preview, teamId, userId],
   );
 
   const mergeRecords = useCallback(
@@ -116,6 +123,14 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
   // --- local cache first, then the club ------------------------------------------------
 
   useEffect(() => {
+    if (preview) {
+      trainingRef.current = DEMO_TRAINING;
+      setPlayers(DEMO_PLAYERS);
+      setTraining(DEMO_TRAINING);
+      setPhase('ready');
+      return;
+    }
+
     let active = true;
     const scope = `${userId ?? ''}|${teamId ?? ''}`;
     if (scopeRef.current !== scope) {
@@ -223,11 +238,15 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
     return () => {
       active = false;
     };
-  }, [teamId, userId, reloadKey, mergeRecords]);
+  }, [preview, teamId, userId, reloadKey, mergeRecords]);
 
   // --- the displayed week ---------------------------------------------------------------
 
   useEffect(() => {
+    if (preview) {
+      mergeRecords(demoAttendance(weekStart, sessionToday()));
+      return;
+    }
     if (!teamId || !userId) return;
     let active = true;
     const week = weekStart;
@@ -253,7 +272,7 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
     return () => {
       active = false;
     };
-  }, [teamId, userId, weekStart, reloadKey, mergeRecords]);
+  }, [preview, teamId, userId, weekStart, reloadKey, mergeRecords]);
 
   // --- which session is open --------------------------------------------------------------
 
@@ -293,6 +312,13 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
       status,
       recorded_at: recordedAt,
     };
+    if (preview) {
+      const next = withAttendance(recordsRef.current, row);
+      recordsRef.current = next;
+      setRecords(next);
+      return;
+    }
+
     const queued = queue.enqueue({
       table: 'attendance',
       rowId: row.id,
@@ -518,9 +544,11 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
                 </View>
                 <View style={styles.sessionFooter}>
                   <Text style={styles.saveHint}>
-                    {canEdit
-                      ? 'Marks save on this phone first, then sync.'
-                      : 'Only a coach or manager can change these marks.'}
+                    {preview
+                      ? 'Preview squad: marks change this screen only and are not sent anywhere.'
+                      : canEdit
+                        ? 'Marks save on this phone first, then sync.'
+                        : 'Only a coach or manager can change these marks.'}
                   </Text>
                   <Pressable onPress={onOpenSetup}>
                     <Text style={styles.link}>{canEdit ? 'Edit training days' : 'View training days'}</Text>

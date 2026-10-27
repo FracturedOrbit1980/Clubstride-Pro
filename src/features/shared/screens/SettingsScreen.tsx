@@ -33,8 +33,10 @@ export const SettingsScreen: React.FC<{
   mode: AppMode;
   onModeChange: (next: AppMode) => Promise<string | null>;
   onOpenLite: () => void;
-}> = ({ mode, onModeChange, onOpenLite }) => {
-  const { user, tier, memberships, signOut } = useAuth();
+  /** Only passed while signed out: leaves the sample squad for the sign-in screen. */
+  onSignIn?: (() => void) | undefined;
+}> = ({ mode, onModeChange, onOpenLite, onSignIn }) => {
+  const { user, tier, memberships, signOut, preview } = useAuth();
   const { pending, blocked, queue } = useSyncQueue();
   const [phase, setPhase] = useState<Phase>('idle');
   const [failure, setFailure] = useState<DeletionFailure | null>(null);
@@ -79,9 +81,11 @@ export const SettingsScreen: React.FC<{
 
       <View style={styles.card}>
         <Text style={styles.label}>Account</Text>
-        <Text style={styles.value}>{user?.email ?? 'No email on this session'}</Text>
+        <Text style={styles.value}>{preview ? 'Preview - not signed in' : user?.email ?? 'No email on this session'}</Text>
         <Text style={styles.meta}>
-          {tier === 'pro' ? 'Pro' : 'Lite'} - {memberships.length === 0 ? 'no squads' : `${memberships.length} squad(s)`}
+          {preview
+            ? 'Pro - 1 sample squad'
+            : `${tier === 'pro' ? 'Pro' : 'Lite'} - ${memberships.length === 0 ? 'no squads' : `${memberships.length} squad(s)`}`}
         </Text>
       </View>
 
@@ -113,25 +117,45 @@ export const SettingsScreen: React.FC<{
       <View style={styles.card}>
         <Text style={styles.label}>Data on this phone</Text>
         <Text style={styles.meta}>
-          {unsent === 0
-            ? 'Everything recorded here has reached the club.'
-            : `${unsent} change(s) are still only on this phone. Deleting the account discards them.`}
+          {preview
+            ? 'This is a sample squad bundled with the app. Nothing here is read from or sent to a club.'
+            : unsent === 0
+              ? 'Everything recorded here has reached the club.'
+              : `${unsent} change(s) are still only on this phone. Deleting the account discards them.`}
         </Text>
       </View>
 
       {mode === 'lite' ? (
-        <Pressable style={styles.secondary} onPress={onOpenLite} disabled={memberships.length === 0}>
-          <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>Open Lite view</Text>
+        <Pressable
+          style={styles.secondary}
+          onPress={onOpenLite}
+          disabled={!preview && memberships.length === 0}
+        >
+          <Text
+            style={[styles.secondaryLabel, !preview && memberships.length === 0 && styles.disabledLabel]}
+          >
+            Open Lite view
+          </Text>
         </Pressable>
       ) : null}
 
-      <Pressable style={styles.secondary} onPress={() => void signOut()} disabled={phase === 'deleting'}>
-        <Text style={styles.secondaryLabel}>Sign out</Text>
-      </Pressable>
+      {preview ? (
+        onSignIn ? (
+          <Pressable style={styles.secondary} onPress={onSignIn}>
+            <Text style={styles.secondaryLabel}>Sign in</Text>
+          </Pressable>
+        ) : null
+      ) : (
+        <>
+          <Pressable style={styles.secondary} onPress={() => void signOut()} disabled={phase === 'deleting'}>
+            <Text style={styles.secondaryLabel}>Sign out</Text>
+          </Pressable>
 
-      <Pressable style={styles.destructive} onPress={() => setPhase('confirming')} disabled={phase === 'deleting'}>
-        <Text style={styles.destructiveLabel}>Delete account</Text>
-      </Pressable>
+          <Pressable style={styles.destructive} onPress={() => setPhase('confirming')} disabled={phase === 'deleting'}>
+            <Text style={styles.destructiveLabel}>Delete account</Text>
+          </Pressable>
+        </>
+      )}
 
       <Modal visible={phase !== 'idle'} transparent animationType="fade" onRequestClose={close}>
         <View style={styles.scrim}>
