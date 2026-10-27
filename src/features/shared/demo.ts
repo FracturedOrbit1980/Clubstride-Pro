@@ -3,6 +3,18 @@ import type { AttendanceRow, AttendanceStatus } from '../coach/attendance/attend
 import type { SquadPlayerRow } from '../coach/attendance/squad';
 import { sessionsInWeek, type TrainingSettings } from '../coach/attendance/trainingDays';
 import type { Drill } from '../coach/drills/drills';
+import {
+  METRICS,
+  type PlayerAssessment,
+  type Scores,
+} from '../coach/player/assessment';
+import {
+  buildMatchLog,
+  type LineupMinutesRow,
+  type MatchMinutesRow,
+  type PlayerMatchEntry,
+} from '../coach/player/minutes';
+import { normaliseShareCode } from '../coach/player/shareCode';
 
 /**
  * The signed-out preview: the same screens, fed by a squad bundled with the app instead of the
@@ -87,4 +99,122 @@ export const demoAttendance = (weekStart: string, today: string): AttendanceRow[
     });
   }
   return rows;
+};
+
+const DEMO_NOTES = [
+  'Reads the game well. Next focus: receiving on the half-turn.',
+  'Strong in the duels. Keep working on the first touch under pressure.',
+  'Excellent attitude at training. Needs to scan earlier before the ball arrives.',
+];
+
+/**
+ * Every preview player has a full assessment, so the radar is never empty. Half-step scores are
+ * spread by player index rather than randomised: the same squad reads the same on every visit.
+ */
+export const demoAssessment = (playerId: string): PlayerAssessment => {
+  const index = Math.max(
+    0,
+    DEMO_PLAYERS.findIndex(entry => entry.id === playerId),
+  );
+  const scores: Scores = {};
+  METRICS.forEach((metric, metricIndex) => {
+    scores[metric.key] = 1.5 + ((index + metricIndex * 2) % 8) * 0.5;
+  });
+  return {
+    id: `preview-assessment-${playerId}`,
+    playerId,
+    scores,
+    coachNotes: DEMO_NOTES[index % DEMO_NOTES.length] ?? null,
+    recordedAt: '2026-10-20T17:00:00.000Z',
+  };
+};
+
+/**
+ * Four completed matches and one in progress. The unfinished one is deliberate: it proves the
+ * percentage ignores a clock that is still running.
+ */
+export const DEMO_MATCHES: MatchMinutesRow[] = [
+  {
+    id: 'preview-match-1',
+    title: 'League',
+    opponent_name: 'Northside FC',
+    match_date: '2026-09-27',
+    status: 'completed',
+    duration_seconds: 3600,
+    recorded_at: '2026-09-27T10:30:00.000Z',
+  },
+  {
+    id: 'preview-match-2',
+    title: 'League',
+    opponent_name: 'Riverside Athletic',
+    match_date: '2026-10-04',
+    status: 'completed',
+    duration_seconds: 3600,
+    recorded_at: '2026-10-04T10:30:00.000Z',
+  },
+  {
+    id: 'preview-match-3',
+    title: 'Cup',
+    opponent_name: 'Hillside United',
+    match_date: '2026-10-11',
+    status: 'completed',
+    duration_seconds: 3600,
+    recorded_at: '2026-10-11T10:30:00.000Z',
+  },
+  {
+    id: 'preview-match-4',
+    title: 'League',
+    opponent_name: 'Eastgate Rovers',
+    match_date: '2026-10-18',
+    status: 'completed',
+    duration_seconds: 3600,
+    recorded_at: '2026-10-18T10:30:00.000Z',
+  },
+  {
+    id: 'preview-match-5',
+    title: 'League',
+    opponent_name: 'Park Rangers',
+    match_date: '2026-10-25',
+    status: 'in_progress',
+    duration_seconds: 1800,
+    recorded_at: '2026-10-25T10:00:00.000Z',
+  },
+];
+
+export const DEMO_LINEUP: LineupMinutesRow[] = DEMO_MATCHES.filter(
+  match => match.status === 'completed',
+).flatMap((match, matchIndex) =>
+  DEMO_PLAYERS.map((entry, playerIndex) => {
+    const starter = (playerIndex + matchIndex) % 10 < 7;
+    const minutes = starter
+      ? 45 + ((playerIndex * 7 + matchIndex * 13) % 16)
+      : (playerIndex * 11 + matchIndex * 5) % 25;
+    return {
+      match_id: match.id,
+      player_id: entry.id,
+      listed_as: starter ? 'starter' : 'bench',
+      recorded_seconds: minutes * 60,
+    };
+  }),
+);
+
+export const demoMatchLog = (playerId: string): PlayerMatchEntry[] =>
+  buildMatchLog(playerId, DEMO_MATCHES, DEMO_LINEUP);
+
+/** Stable codes so the preview's share button and code entry can be tried without a backend. */
+const PREVIEW_CODE_BASE = 24;
+
+export const previewShareCode = (playerId: string): string => {
+  const index = DEMO_PLAYERS.findIndex(entry => entry.id === playerId);
+  return `PLAYER${PREVIEW_CODE_BASE + Math.max(0, index)}`;
+};
+
+export const DEMO_SHARE_CODE = previewShareCode('preview-player-1');
+
+/** The reverse of previewShareCode, for the shared profile screen while signed out. */
+export const previewSharedPlayer = (code: string): SquadPlayerRow | null => {
+  const match = /^PLAYER(2[4-9]|3[0-3])$/.exec(normaliseShareCode(code));
+  if (!match) return null;
+  const index = Number(match[1]) - PREVIEW_CODE_BASE;
+  return DEMO_PLAYERS[index] ?? null;
 };

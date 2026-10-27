@@ -11,3 +11,4 @@ if (nodeModule.registerHooks) {
 await (await import('./outbox-harness.ts')).done;
 await (await import('./attendance-harness.ts')).done;
 await (await import('./drills-harness.ts')).done;
+await (await import('./player-harness.ts')).done;

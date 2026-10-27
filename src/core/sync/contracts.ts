@@ -10,6 +10,7 @@ export type SyncTable =
   | 'players'
   | 'drills'
   | 'progression_feedback'
+  | 'player_assessments'
   | 'attendance'
   | 'team_settings';
 
@@ -46,6 +47,9 @@ export const TABLE_CONTRACTS: Record<SyncTable, TableContract> = {
   match_players: { insertOwner: null, tombstoned: false, versionColumn: null, flushRank: 1 },
   match_events: { insertOwner: 'created_by', tombstoned: true, versionColumn: 'recorded_at', flushRank: 1 },
   progression_feedback: { insertOwner: 'coach_id', tombstoned: true, versionColumn: 'recorded_at', flushRank: 1 },
+  // created_by defaults to auth.uid() in 20261027120000_player_feedback.sql, the same way
+  // attendance.recorded_by does, so the payload never carries it. Rank 1: the player row first.
+  player_assessments: { insertOwner: null, tombstoned: true, versionColumn: 'recorded_at', flushRank: 1 },
   attendance: { insertOwner: null, tombstoned: true, versionColumn: 'recorded_at', flushRank: 1 },
   // One row per team, whose id *is* the team id: a queued settings edit is just an upsert
   // on `teams.id`, so it needs no row-id lookup table on the phone. No delete path.

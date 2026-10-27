@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../../../core/context/AuthContext';
 import { useSyncQueue } from '../../../core/sync';
 import { supabase } from '../../../core/supabaseClient';
 import { BrandLockup } from '../components/BrandLockup';
 import { TrainingDaysCard } from '../../coach/components/TrainingDaysCard';
+import { isShareCode, normaliseShareCode } from '../../coach/player/shareCode';
 import { ci } from '../ci';
 import type { AppMode } from '../appMode';
 
@@ -36,12 +37,27 @@ export const SettingsScreen: React.FC<{
   onOpenLite: () => void;
   /** Only passed while signed out: leaves the sample squad for the sign-in screen. */
   onSignIn?: (() => void) | undefined;
-}> = ({ mode, onModeChange, onOpenLite, onSignIn }) => {
+  /** Opens a shared player report by the code printed on its PDF, with no account needed. */
+  onOpenSharedProfile?: ((code: string) => void) | undefined;
+}> = ({ mode, onModeChange, onOpenLite, onSignIn, onOpenSharedProfile }) => {
   const { user, tier, memberships, signOut, preview } = useAuth();
   const { pending, blocked, queue } = useSyncQueue();
   const [phase, setPhase] = useState<Phase>('idle');
   const [failure, setFailure] = useState<DeletionFailure | null>(null);
   const [modeError, setModeError] = useState<string | null>(null);
+  const [reportCode, setReportCode] = useState('');
+  const [reportError, setReportError] = useState<string | null>(null);
+
+  const openReport = (): void => {
+    const code = normaliseShareCode(reportCode);
+    if (!isShareCode(code)) {
+      setReportError('A code is eight characters, without I, O, 0 or 1.');
+      return;
+    }
+    setReportError(null);
+    setReportCode('');
+    onOpenSharedProfile?.(code);
+  };
 
   const applyMode = async (next: AppMode): Promise<void> => {
     if (next === mode) return;
@@ -116,6 +132,39 @@ export const SettingsScreen: React.FC<{
       </View>
 
       <TrainingDaysCard />
+
+      {onOpenSharedProfile ? (
+        <View style={styles.card}>
+          <Text style={styles.label}>Player reports</Text>
+          <Text style={styles.meta}>
+            Every report PDF carries a code. Type it here to open that player's profile without signing in.
+          </Text>
+          <TextInput
+            value={reportCode}
+            onChangeText={value => {
+              setReportCode(value);
+              setReportError(null);
+            }}
+            onSubmitEditing={openReport}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            placeholder="ABCD2345"
+            placeholderTextColor={ci.color.muted}
+            maxLength={16}
+            style={styles.codeInput}
+            accessibilityLabel="Player report code"
+          />
+          {reportError ? <Text style={styles.modeError}>{reportError}</Text> : null}
+          <Pressable
+            style={styles.secondary}
+            onPress={openReport}
+            accessibilityRole="button"
+            accessibilityLabel="Open the report for this code"
+          >
+            <Text style={styles.secondaryLabel}>Open report</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.card}>
         <Text style={styles.label}>Data on this phone</Text>
@@ -222,6 +271,18 @@ const styles = {
   modeLabel: { color: ci.color.text, fontSize: 14, fontWeight: '700' },
   modeLabelOn: { color: ci.color.onAccent },
   modeError: { color: ci.color.danger, fontSize: 13 },
+  codeInput: {
+    marginTop: 6,
+    padding: 10,
+    borderRadius: ci.radius.control,
+    backgroundColor: ci.color.background,
+    borderWidth: 1,
+    borderColor: ci.color.borderInput,
+    color: ci.color.text,
+    fontSize: 16,
+    letterSpacing: 3,
+    textAlign: 'center',
+  },
   secondary: { padding: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center' },
   secondaryLabel: { color: ci.color.text, fontSize: 15, fontWeight: '700' },
   disabledLabel: { color: ci.color.disabledText },

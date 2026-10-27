@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/core/context/AuthContext';
 import { SyncQueueProvider } from './src/core/sync';
 import { AttendanceScreen } from './src/features/coach/screens/AttendanceScreen';
 import { LiteWeekScreen } from './src/features/coach/screens/LiteWeekScreen';
+import { PlayerProfileScreen } from './src/features/coach/screens/PlayerProfileScreen';
 import { SetupScreen } from './src/features/coach/screens/SetupScreen';
+import { SharedProfileScreen } from './src/features/coach/screens/SharedProfileScreen';
 import { SquadScreen } from './src/features/coach/screens/SquadScreen';
+import type { SquadPlayerRow } from './src/features/coach/attendance/squad';
+import { shareCodeFromUrl } from './src/features/coach/player/shareCode';
 import { loadAppMode, saveAppMode, type AppMode } from './src/features/shared/appMode';
 import { ForgotPasswordScreen } from './src/features/shared/screens/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './src/features/shared/screens/ResetPasswordScreen';
@@ -41,7 +45,8 @@ const Problem: React.FC<{ title: string; body: string }> = ({ title, body }) => 
   );
 };
 
-type RootView = ProTab | 'lite';
+// 'player' is a drill-down from the Squad tab, not a fifth tab: the dock stays on Squad.
+type RootView = ProTab | 'lite' | 'player';
 type AuthView = 'signIn' | 'signUp' | 'forgot';
 
 const Root: React.FC = () => {
@@ -52,6 +57,12 @@ const Root: React.FC = () => {
   const [authView, setAuthView] = useState<AuthView>('signIn');
   // Signed out opens on the bundled sample squad; signing in from Settings is one press away.
   const [showAuth, setShowAuth] = useState(false);
+  const [player, setPlayer] = useState<SquadPlayerRow | null>(null);
+  // A share link outranks the rest of the app: the code is the credential, so this has to open
+  // for a visitor with no account at all.
+  const [sharedCode, setSharedCode] = useState<string | null>(() =>
+    Platform.OS === 'web' && typeof window !== 'undefined' ? shareCodeFromUrl(window.location.href) : null,
+  );
 
   useEffect(() => {
     let alive = true;
@@ -66,6 +77,25 @@ const Root: React.FC = () => {
     };
   }, []);
 
+  // Native has no window.location, so the link arrives as an initial URL or a launch event.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    let alive = true;
+    void Linking.getInitialURL().then(url => {
+      if (!alive || !url) return;
+      const code = shareCodeFromUrl(url);
+      if (code) setSharedCode(code);
+    });
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      const code = shareCodeFromUrl(url);
+      if (code) setSharedCode(code);
+    });
+    return () => {
+      alive = false;
+      subscription.remove();
+    };
+  }, []);
+
   useEffect(() => {
     if (status !== 'signedOut') setShowAuth(false);
   }, [status]);
@@ -76,6 +106,26 @@ const Root: React.FC = () => {
     return saveAppMode(next);
   };
 
+  // Keeps the address bar honest: a code typed into Settings becomes a link the family can keep,
+  // and closing the report takes the code back out instead of leaving it in the history.
+  const setWebShareParam = (code: string | null): void => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (code) url.searchParams.set('player', code);
+    else url.searchParams.delete('player');
+    window.history.replaceState(null, '', url.toString());
+  };
+
+  const openSharedCode = (code: string): void => {
+    setSharedCode(code);
+    setWebShareParam(code);
+  };
+
+  const closeShared = (): void => {
+    setSharedCode(null);
+    setWebShareParam(null);
+  };
+
   // A recovery link outranks every other screen: the exchange signs the user in, so waiting
   // for status would flash Settings before asking for the new password.
   if (recovery.active) return <ResetPasswordScreen />;
@@ -84,6 +134,15 @@ const Root: React.FC = () => {
     return (
       <View style={styles.center}>
         <Text style={styles.body}>Loading your club...</Text>
+      </View>
+    );
+  }
+
+  if (sharedCode) {
+    return (
+      <View style={styles.screen}>
+        <StatusBar style="light" />
+        <SharedProfileScreen code={sharedCode} onClose={closeShared} onOpenCode={openSharedCode} />
       </View>
     );
   }
@@ -122,7 +181,12 @@ const Root: React.FC = () => {
     );
   }
 
-  const activeTab: ProTab = view === 'lite' ? 'squad' : view;
+  const activeTab: ProTab = view === 'lite' || view === 'player' ? 'squad' : view;
+
+  const openPlayer = (next: SquadPlayerRow): void => {
+    setPlayer(next);
+    setView('player');
+  };
 
   return (
     <View style={styles.screen}>
@@ -137,6 +201,7 @@ const Root: React.FC = () => {
           onModeChange={changeMode}
           onOpenLite={() => setView('lite')}
           onSignIn={preview ? () => setShowAuth(true) : undefined}
+          onOpenSharedProfile={openSharedCode}
         />
       ) : null}
       {mode === 'pro' ? (
@@ -145,7 +210,14 @@ const Root: React.FC = () => {
             <BrandLockup size={24} onPress={() => void changeMode('lite')} accessibilityLabel="Switch to Lite view" />
           </View>
           <View style={styles.tabBody}>
-            {view === 'squad' ? <SquadScreen /> : null}
+            {view === 'squad' ? <SquadScreen onOpenPlayer={openPlayer} /> : null}
+            {view === 'player' && player ? (
+              <PlayerProfileScreen
+                key={player.id}
+                player={player}
+                onBack={() => setView('squad')}
+              />
+            ) : null}
             {view === 'register' ? <AttendanceScreen onOpenSetup={() => setView('training')} /> : null}
             {view === 'training' ? <SetupScreen onOpenAttendance={() => setView('register')} /> : null}
             {view === 'settings' ? (
@@ -154,6 +226,7 @@ const Root: React.FC = () => {
                 onModeChange={changeMode}
                 onOpenLite={() => setView('lite')}
                 onSignIn={preview ? () => setShowAuth(true) : undefined}
+                onOpenSharedProfile={openSharedCode}
               />
             ) : null}
           </View>

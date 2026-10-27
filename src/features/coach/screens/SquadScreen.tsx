@@ -2,16 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { useAuth } from '../../../core/context/AuthContext';
 import { supabase } from '../../../core/supabaseClient';
+import type { SquadPlayerRow } from '../attendance/squad';
 import { ci } from '../../shared/ci';
 import { DEMO_MEMBERSHIP, DEMO_PLAYERS } from '../../shared/demo';
-
-interface PlayerRow {
-  id: string;
-  full_name: string;
-  shirt_number: number;
-  position_tag: string | null;
-  available: boolean;
-}
 
 type Phase = 'loading' | 'ready' | 'failed';
 
@@ -20,12 +13,12 @@ type Phase = 'loading' | 'ready' | 'failed';
  * own child. A failed read is shown with its message rather than an empty list, because an
  * empty squad and an unreachable backend look identical otherwise.
  */
-export const SquadScreen: React.FC = () => {
+export const SquadScreen: React.FC<{ onOpenPlayer: (player: SquadPlayerRow) => void }> = ({ onOpenPlayer }) => {
   const { memberships, preview } = useAuth();
   const membership = preview ? DEMO_MEMBERSHIP : memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
   const teamId = membership?.teamId ?? null;
 
-  const [players, setPlayers] = useState<PlayerRow[]>([]);
+  const [players, setPlayers] = useState<SquadPlayerRow[]>([]);
   const [phase, setPhase] = useState<Phase>('loading');
   const [error, setError] = useState<string | null>(null);
 
@@ -54,7 +47,7 @@ export const SquadScreen: React.FC = () => {
       setPhase('failed');
       return;
     }
-    setPlayers((data ?? []) as PlayerRow[]);
+    setPlayers((data ?? []) as SquadPlayerRow[]);
     setPhase('ready');
   }, [teamId, preview]);
 
@@ -108,7 +101,13 @@ export const SquadScreen: React.FC = () => {
               .filter(Boolean)
               .join(' - ');
             return (
-              <View key={player.id} style={styles.playerRow}>
+              <Pressable
+                key={player.id}
+                onPress={() => onOpenPlayer(player)}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${player.full_name}'s profile`}
+                style={({ pressed }) => [styles.playerRow, pressed && styles.playerRowPressed]}
+              >
                 <View style={styles.shirt}>
                   <Text style={styles.shirtLabel}>{player.shirt_number}</Text>
                 </View>
@@ -116,7 +115,8 @@ export const SquadScreen: React.FC = () => {
                   <Text style={styles.playerName}>{player.full_name}</Text>
                   <Text style={styles.meta}>{detail || 'No position set'}</Text>
                 </View>
-              </View>
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
             );
           })
         : null}
@@ -135,6 +135,8 @@ const styles = {
   retry: { marginTop: 4, paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start' },
   retryLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '700' },
   playerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: ci.radius.card, backgroundColor: ci.color.surface },
+  playerRowPressed: { opacity: 0.75 },
+  chevron: { color: ci.color.muted, fontSize: 20, fontWeight: '700' },
   shirt: { width: 38, height: 38, borderRadius: 19, backgroundColor: ci.color.accent, alignItems: 'center', justifyContent: 'center' },
   shirtLabel: { color: ci.color.onAccent, fontSize: 15, fontWeight: '800' },
   playerText: { flex: 1, gap: 2 },
