@@ -58,6 +58,8 @@ interface AuthContextValue {
   requestPasswordReset: (email: string) => Promise<string | null>;
   updatePassword: (password: string) => Promise<string | null>;
   signInWithGoogle: () => Promise<string | null>;
+  /** True only when the club's backend has the Google provider switched on and answering. */
+  googleAvailable: boolean;
   recovery: RecoveryState;
   clearRecovery: () => void;
   linkError: string | null;
@@ -161,6 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [recovery, setRecovery] = useState<RecoveryState>({ active: false, checking: false, error: null });
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [googleAvailable, setGoogleAvailable] = useState(false);
 
   const settled = useRef(false);
   const profileLoadedFor = useRef<string | null>(null);
@@ -343,6 +346,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [handleCallbackUrl, handleRecoveryUrl]);
 
+  // Asked once on load: a sign-in screen must not offer a provider the club has not switched
+  // on. A failed check counts as off, so the button only appears when the answer is yes.
+  useEffect(() => {
+    let active = true;
+    void googleEnabled().then(on => {
+      if (active) setGoogleAvailable(on === true);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
@@ -430,6 +445,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           oauthInFlight.current = false;
         }
       },
+      googleAvailable,
       recovery,
       clearRecovery: () => setRecovery({ active: false, checking: false, error: null }),
       linkError,
@@ -445,7 +461,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await loadProfile(user.id);
       },
     }),
-    [session, user, tier, memberships, status, recovery, linkError, loadProfile, handleCallbackUrl],
+    [session, user, tier, memberships, status, recovery, linkError, googleAvailable, loadProfile, handleCallbackUrl],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

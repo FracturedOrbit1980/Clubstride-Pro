@@ -16,7 +16,7 @@ interface SignInScreenProps {
 }
 
 export const SignInScreen: React.FC<SignInScreenProps> = ({ onCreateAccount, onForgotPassword }) => {
-  const { signIn, signInWithGoogle, linkError, clearLinkError } = useAuth();
+  const { signIn, signInWithGoogle, googleAvailable, linkError, clearLinkError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState<'password' | 'google' | null>(null);
@@ -91,18 +91,22 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onCreateAccount, onF
         disabled={busy === 'google'}
       />
 
-      <View style={authStyles.dividerRow}>
-        <View style={authStyles.divider} />
-        <Text style={authStyles.dividerText}>or</Text>
-        <View style={authStyles.divider} />
-      </View>
+      {googleAvailable ? (
+        <>
+          <View style={authStyles.dividerRow}>
+            <View style={authStyles.divider} />
+            <Text style={authStyles.dividerText}>or</Text>
+            <View style={authStyles.divider} />
+          </View>
 
-      <SecondaryButton
-        label="Continue with Google"
-        onPress={() => void google()}
-        busy={busy === 'google'}
-        disabled={busy === 'password'}
-      />
+          <SecondaryButton
+            label="Continue with Google"
+            onPress={() => void google()}
+            busy={busy === 'google'}
+            disabled={busy === 'password'}
+          />
+        </>
+      ) : null}
 
       <View style={authStyles.linkRow}>
         <Text style={authStyles.muted}>New to Clubstride?</Text>
