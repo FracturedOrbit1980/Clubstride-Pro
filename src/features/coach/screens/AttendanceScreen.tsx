@@ -64,10 +64,7 @@ const downloadRegisterOnWeb = (bytes: Uint8Array<ArrayBuffer>, fileName: string)
  * Reads are local-first. Squad, training days and the marks already on this phone render
  * before the network is asked, and a failed refresh is shown instead of leaving a blank list.
  */
-export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () => void }> = ({
-  onBack,
-  onOpenSetup,
-}) => {
+export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpenSetup }) => {
   const { memberships, user, isStaff } = useAuth();
   const { queue } = useSyncQueue();
   const membership = memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
@@ -376,15 +373,10 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <View style={styles.header}>
-        <Pressable style={styles.back} onPress={onBack}>
-          <Text style={styles.backLabel}>Back</Text>
-        </Pressable>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>Attendance</Text>
-          <Text style={styles.headerMeta}>
-            {membership ? `${membership.teamName}${roleLabel ? ` - ${roleLabel}` : ''}` : 'No squad yet'}
-          </Text>
-        </View>
+        <Text style={styles.title}>Register</Text>
+        <Text style={styles.headerMeta}>
+          {membership ? `${membership.teamName}${roleLabel ? ` - ${roleLabel}` : ''}` : 'No squad yet'}
+        </Text>
       </View>
 
       {phase === 'loading' ? <ActivityIndicator color={ci.color.primary} /> : null}
@@ -498,10 +490,10 @@ export const AttendanceScreen: React.FC<{ onBack: () => void; onOpenSetup: () =>
             <View style={styles.card}>
               <Text style={styles.cardTitle}>No training days set</Text>
               <Text style={styles.meta}>
-                Attendance has no sessions until the weekdays this squad trains are chosen in Setup.
+                Attendance has no sessions until the weekdays this squad trains are chosen in Training.
               </Text>
               <Pressable style={styles.secondary} onPress={onOpenSetup}>
-                <Text style={styles.secondaryLabel}>Open setup</Text>
+                <Text style={styles.secondaryLabel}>Open training</Text>
               </Pressable>
             </View>
           ) : null}
@@ -600,12 +592,9 @@ const STATUS_ON: Record<AttendanceStatus, { button: ViewStyle; label: TextStyle 
 
 const styles = {
   screen: { padding: 16, gap: 12, backgroundColor: ci.color.background },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
-  backLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '700' },
-  headerText: { flex: 1 },
+  header: { gap: 2 },
   title: { color: ci.color.text, fontSize: 22, fontWeight: '800' },
-  headerMeta: { color: ci.color.muted, fontSize: 13, marginTop: 2 },
+  headerMeta: { color: ci.color.muted, fontSize: 13 },
   card: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 10 },
   cardTitle: { color: ci.color.text, fontSize: 16, fontWeight: '800' },
   meta: { color: ci.color.muted, fontSize: 13, lineHeight: 19 },

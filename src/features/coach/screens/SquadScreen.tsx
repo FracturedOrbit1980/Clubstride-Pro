@@ -19,7 +19,7 @@ type Phase = 'loading' | 'ready' | 'failed';
  * own child. A failed read is shown with its message rather than an empty list, because an
  * empty squad and an unreachable backend look identical otherwise.
  */
-export const SquadScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+export const SquadScreen: React.FC = () => {
   const { memberships } = useAuth();
   const membership = memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
   const teamId = membership?.teamId ?? null;
@@ -66,12 +66,7 @@ export const SquadScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <View style={styles.header}>
-        <Pressable style={styles.back} onPress={onBack}>
-          <Text style={styles.backLabel}>Back</Text>
-        </Pressable>
-        <Text style={styles.title}>Squad</Text>
-      </View>
+      <Text style={styles.title}>Squad</Text>
 
       {membership ? (
         <View style={styles.card}>
@@ -125,9 +120,6 @@ export const SquadScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
 const styles = {
   screen: { padding: 16, gap: 12, backgroundColor: ci.color.background },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
-  backLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '700' },
   title: { color: ci.color.text, fontSize: 22, fontWeight: '800' },
   card: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 4 },
   label: { color: ci.color.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },

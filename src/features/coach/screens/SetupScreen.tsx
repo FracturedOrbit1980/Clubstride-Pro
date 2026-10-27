@@ -25,10 +25,7 @@ type Phase = 'loading' | 'ready' | 'failed';
  * The save path matches the rest of Pro: the phone writes to its outbox first and the screen
  * says so, because the setup screen is often used at a ground with no signal.
  */
-export const SetupScreen: React.FC<{ onBack: () => void; onOpenAttendance: () => void }> = ({
-  onBack,
-  onOpenAttendance,
-}) => {
+export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpenAttendance }) => {
   const { memberships, user, isStaff } = useAuth();
   const { queue } = useSyncQueue();
   const membership = memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
@@ -147,13 +144,8 @@ export const SetupScreen: React.FC<{ onBack: () => void; onOpenAttendance: () =>
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <View style={styles.header}>
-        <Pressable style={styles.back} onPress={onBack}>
-          <Text style={styles.backLabel}>Back</Text>
-        </Pressable>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>Setup</Text>
-          <Text style={styles.headerMeta}>{membership?.teamName ?? 'No squad yet'}</Text>
-        </View>
+        <Text style={styles.title}>Training</Text>
+        <Text style={styles.headerMeta}>{membership?.teamName ?? 'No squad yet'}</Text>
       </View>
 
       {!membership ? (
@@ -211,7 +203,7 @@ export const SetupScreen: React.FC<{ onBack: () => void; onOpenAttendance: () =>
 
       {membership ? (
         <Pressable style={styles.secondary} onPress={onOpenAttendance}>
-          <Text style={styles.secondaryLabel}>Take attendance</Text>
+          <Text style={styles.secondaryLabel}>Open register</Text>
         </Pressable>
       ) : null}
 
@@ -234,12 +226,9 @@ export const SetupScreen: React.FC<{ onBack: () => void; onOpenAttendance: () =>
 
 const styles = {
   screen: { padding: 16, gap: 12, backgroundColor: ci.color.background },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
-  backLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '700' },
-  headerText: { flex: 1 },
+  header: { gap: 2 },
   title: { color: ci.color.text, fontSize: 22, fontWeight: '800' },
-  headerMeta: { color: ci.color.muted, fontSize: 13, marginTop: 2 },
+  headerMeta: { color: ci.color.muted, fontSize: 13 },
   card: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 10 },
   cardTitle: { color: ci.color.text, fontSize: 16, fontWeight: '800' },
   label: { color: ci.color.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },

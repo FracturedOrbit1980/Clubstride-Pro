@@ -30,13 +30,10 @@ const toFailure = (error: { message: string; hint?: string | null; code?: string
  * cleared while the session still names the account being deleted, then the session is dropped.
  */
 export const SettingsScreen: React.FC<{
-  onOpenSquad: () => void;
-  onOpenAttendance: () => void;
-  onOpenSetup: () => void;
   mode: AppMode;
   onModeChange: (next: AppMode) => Promise<string | null>;
   onOpenLite: () => void;
-}> = ({ onOpenSquad, onOpenAttendance, onOpenSetup, mode, onModeChange, onOpenLite }) => {
+}> = ({ mode, onModeChange, onOpenLite }) => {
   const { user, tier, memberships, signOut } = useAuth();
   const { pending, blocked, queue } = useSyncQueue();
   const [phase, setPhase] = useState<Phase>('idle');
@@ -75,18 +72,9 @@ export const SettingsScreen: React.FC<{
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <BrandLockup
-        size={28}
-        onPress={() => {
-          if (mode === 'pro') {
-            void applyMode('lite');
-            onOpenLite();
-          } else {
-            void applyMode('pro');
-          }
-        }}
-        accessibilityLabel={mode === 'pro' ? 'Switch to Lite view' : 'Switch to Pro view'}
-      />
+      {mode === 'lite' ? (
+        <BrandLockup size={28} onPress={() => void applyMode('pro')} accessibilityLabel="Switch to Pro view" />
+      ) : null}
       <Text style={styles.title}>Settings</Text>
 
       <View style={styles.card}>
@@ -116,8 +104,8 @@ export const SettingsScreen: React.FC<{
         </View>
         <Text style={styles.meta}>
           {mode === 'pro'
-            ? 'Attendance, training setup, squad and the register.'
-            : 'Squad and training days only. Attendance, setup and the register come back in Pro.'}
+            ? 'Squad, register, training and this account tab.'
+            : 'Squad and training days only. The register and training setup come back in Pro.'}
         </Text>
         {modeError ? <Text style={styles.modeError}>{modeError}</Text> : null}
       </View>
@@ -135,21 +123,7 @@ export const SettingsScreen: React.FC<{
         <Pressable style={styles.secondary} onPress={onOpenLite} disabled={memberships.length === 0}>
           <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>Open Lite view</Text>
         </Pressable>
-      ) : (
-        <>
-          <Pressable style={styles.secondary} onPress={onOpenSquad} disabled={memberships.length === 0}>
-            <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>View squad</Text>
-          </Pressable>
-
-          <Pressable style={styles.secondary} onPress={onOpenAttendance} disabled={memberships.length === 0}>
-            <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>Attendance</Text>
-          </Pressable>
-
-          <Pressable style={styles.secondary} onPress={onOpenSetup} disabled={memberships.length === 0}>
-            <Text style={[styles.secondaryLabel, memberships.length === 0 && styles.disabledLabel]}>Training setup</Text>
-          </Pressable>
-        </>
-      )}
+      ) : null}
 
       <Pressable style={styles.secondary} onPress={() => void signOut()} disabled={phase === 'deleting'}>
         <Text style={styles.secondaryLabel}>Sign out</Text>

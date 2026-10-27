@@ -14,6 +14,8 @@ import { SettingsScreen } from './src/features/shared/screens/SettingsScreen';
 import { SignInScreen } from './src/features/shared/screens/SignInScreen';
 import { SignUpScreen } from './src/features/shared/screens/SignUpScreen';
 import { SyncStatusBanner } from './src/features/shared/components/SyncStatusBanner';
+import { BrandLockup } from './src/features/shared/components/BrandLockup';
+import { TabBar, type ProTab } from './src/features/shared/components/TabBar';
 import { ci } from './src/features/shared/ci';
 
 /**
@@ -39,25 +41,22 @@ const Problem: React.FC<{ title: string; body: string }> = ({ title, body }) => 
   );
 };
 
-type RootView = 'settings' | 'squad' | 'setup' | 'attendance' | 'lite';
+type RootView = ProTab | 'lite';
 type AuthView = 'signIn' | 'signUp' | 'forgot';
 
 const Root: React.FC = () => {
   const { status, recovery } = useAuth();
-  const [view, setView] = useState<RootView>('settings');
+  const [view, setView] = useState<RootView>('squad');
   const [mode, setMode] = useState<AppMode>('pro');
   const [modeReady, setModeReady] = useState(false);
   const [authView, setAuthView] = useState<AuthView>('signIn');
-  // Setup is reachable from both Settings and Attendance; Back has to return to the one the
-  // coach came from, or editing the days dumps them on a screen they were not using.
-  const [setupFrom, setSetupFrom] = useState<'settings' | 'attendance'>('settings');
 
   useEffect(() => {
     let alive = true;
     void loadAppMode().then(stored => {
       if (!alive) return;
       setMode(stored);
-      if (stored === 'lite') setView('lite');
+      setView(stored === 'lite' ? 'lite' : 'squad');
       setModeReady(true);
     });
     return () => {
@@ -67,7 +66,7 @@ const Root: React.FC = () => {
 
   const changeMode = async (next: AppMode): Promise<string | null> => {
     setMode(next);
-    setView('settings');
+    setView(next === 'lite' ? 'lite' : 'squad');
     return saveAppMode(next);
   };
 
@@ -112,38 +111,33 @@ const Root: React.FC = () => {
     );
   }
 
+  const activeTab: ProTab = view === 'lite' ? 'squad' : view;
+
   return (
     <View style={styles.screen}>
       <StatusBar style="light" />
       <SyncStatusBanner />
-      {mode === 'pro' && view === 'squad' ? <SquadScreen onBack={() => setView('settings')} /> : null}
-      {view === 'settings' ? (
-        <SettingsScreen
-          mode={mode}
-          onModeChange={changeMode}
-          onOpenLite={() => setView('lite')}
-          onOpenSquad={() => setView('squad')}
-          onOpenAttendance={() => setView('attendance')}
-          onOpenSetup={() => {
-            setSetupFrom('settings');
-            setView('setup');
-          }}
-        />
-      ) : null}
-      {view === 'lite' ? (
+      {mode === 'lite' && view === 'lite' ? (
         <LiteWeekScreen onOpenSettings={() => setView('settings')} onSwitchToPro={() => void changeMode('pro')} />
       ) : null}
-      {mode === 'pro' && view === 'attendance' ? (
-        <AttendanceScreen
-          onBack={() => setView('settings')}
-          onOpenSetup={() => {
-            setSetupFrom('attendance');
-            setView('setup');
-          }}
-        />
+      {mode === 'lite' && view === 'settings' ? (
+        <SettingsScreen mode={mode} onModeChange={changeMode} onOpenLite={() => setView('lite')} />
       ) : null}
-      {mode === 'pro' && view === 'setup' ? (
-        <SetupScreen onBack={() => setView(setupFrom)} onOpenAttendance={() => setView('attendance')} />
+      {mode === 'pro' ? (
+        <>
+          <View style={styles.proHeader}>
+            <BrandLockup size={24} onPress={() => void changeMode('lite')} accessibilityLabel="Switch to Lite view" />
+          </View>
+          <View style={styles.tabBody}>
+            {view === 'squad' ? <SquadScreen /> : null}
+            {view === 'register' ? <AttendanceScreen onOpenSetup={() => setView('training')} /> : null}
+            {view === 'training' ? <SetupScreen onOpenAttendance={() => setView('register')} /> : null}
+            {view === 'settings' ? (
+              <SettingsScreen mode={mode} onModeChange={changeMode} onOpenLite={() => setView('lite')} />
+            ) : null}
+          </View>
+          <TabBar active={activeTab} onChange={setView} />
+        </>
       ) : null}
     </View>
   );
@@ -161,6 +155,8 @@ export default App;
 
 const styles = {
   screen: { flex: 1, backgroundColor: ci.color.background, paddingTop: 8 },
+  proHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 4 },
+  tabBody: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 10, padding: 24, backgroundColor: ci.color.background },
   title: { color: ci.color.text, fontSize: 18, fontWeight: '800' },
   body: { color: ci.color.muted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
