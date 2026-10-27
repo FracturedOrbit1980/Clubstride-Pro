@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type CacheEntity = 'squad' | 'training' | 'attendance';
+export type CacheEntity = 'squad' | 'training' | 'attendance' | 'drills';
 
 /**
  * Namespaced by account and team, like the outbox: two coaches share a phone at the club
