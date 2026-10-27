@@ -100,7 +100,8 @@ const webBaseUrl = (web: WebLocation): string =>
   `${web.origin}${web.pathname.slice(0, web.pathname.lastIndexOf('/') + 1)}`;
 
 // Web keeps the browser origin and marks the link in the query string; native uses the
-// clubstride:// scheme (or exp:// inside Expo Go). Supabase appends ?code= to either.
+// clubstride:// scheme (or exp:// inside Expo Go). Supabase then appends the session in the
+// fragment (implicit) or a ?code for links requested by an older PKCE build.
 const redirectUrl = (kind: 'recovery' | 'callback'): string => {
   const web = webLocation();
   if (web) return `${webBaseUrl(web)}?auth=${kind}`;
@@ -135,6 +136,53 @@ const friendlyLinkError = (raw: string): string => {
   if (!text) return 'That link could not be used. Request a new one.';
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
+
+const hashParams = (url: URL): URLSearchParams => new URLSearchParams(url.hash.replace(/^#/, ''));
+
+// Supabase puts a link's error in the query for a redirect refusal and in the fragment for an
+// implicit-flow failure, so both places have to be read.
+const linkErrorIn = (url: URL): string | null | undefined => {
+  const hash = hashParams(url);
+  return (
+    url.searchParams.get('error_description') ??
+    url.searchParams.get('error') ??
+    hash.get('error_description') ??
+    hash.get('error')
+  );
+};
+
+const MISSING_LINK_PARAMS = 'missing-link-params';
+
+// Two shapes reach the app. An implicit link carries the session in its fragment, so it works
+// on whichever device opens the email. A PKCE link carries ?code and only redeems where its
+// verifier is stored, which is kept for links already sitting in inboxes.
+const consumeAuthLink = async (url: URL): Promise<string | null> => {
+  const hash = hashParams(url);
+  const accessToken = hash.get('access_token');
+  const refreshToken = hash.get('refresh_token');
+  try {
+    if (accessToken && refreshToken) {
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      return error?.message ?? null;
+    }
+    const code = url.searchParams.get('code');
+    if (!code) return MISSING_LINK_PARAMS;
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    return error?.message ?? null;
+  } catch (error) {
+    return error instanceof Error ? error.message : 'That link could not be used.';
+  }
+};
+
+const VERIFIER_MISSING_MESSAGE =
+  'This link only works in the same browser it was requested from, and it was opened somewhere else. Open the newest email there, or request a new link.';
+
+// auth-js words this two ways depending on version: "code verifier not found in storage" and
+// "invalid flow state, no valid flow state found".
+const isVerifierMissing = (message: string): boolean => /code verifier|flow state/i.test(message);
 
 const GOOGLE_DISABLED_MESSAGE =
   'Google sign-in is not switched on for this club yet. Sign in with your email and password, or ask the club owner to enable Google sign-in.';
@@ -226,13 +274,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setRecovery({ active: true, checking: false, error: 'That reset link is not valid. Request a new one.' });
       return;
     }
-    const linkError = parsed.searchParams.get('error_description') ?? parsed.searchParams.get('error');
+    const linkError = linkErrorIn(parsed);
     if (linkError) {
       setRecovery({ active: true, checking: false, error: friendlyLinkError(linkError) });
       return;
     }
-    const code = parsed.searchParams.get('code');
-    if (!code) {
+    const outcome = await consumeAuthLink(parsed);
+    if (outcome === MISSING_LINK_PARAMS) {
       setRecovery({
         active: true,
         checking: false,
@@ -240,20 +288,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return;
     }
-    try {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-      setRecovery({
-        active: true,
-        checking: false,
-        error: error ? `This reset link could not be used: ${error.message}` : null,
-      });
-    } catch (error) {
-      setRecovery({
-        active: true,
-        checking: false,
-        error: error instanceof Error ? error.message : 'This reset link could not be used. Request a new one.',
-      });
-    }
+    setRecovery({
+      active: true,
+      checking: false,
+      error: outcome
+        ? isVerifierMissing(outcome)
+          ? VERIFIER_MISSING_MESSAGE
+          : `This reset link could not be used: ${outcome}`
+        : null,
+    });
   }, []);
 
   const handleCallbackUrl = useCallback(async (rawUrl: string): Promise<string | null> => {
@@ -263,16 +306,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       return 'The sign-in link is not valid. Try again.';
     }
-    const linkError = parsed.searchParams.get('error_description') ?? parsed.searchParams.get('error');
+    const linkError = linkErrorIn(parsed);
     if (linkError) return friendlyLinkError(linkError);
-    const code = parsed.searchParams.get('code');
-    if (!code) return 'The sign-in link is incomplete. Try signing in again.';
-    try {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-      return error?.message ?? null;
-    } catch (error) {
-      return error instanceof Error ? error.message : 'The sign-in link could not be used.';
-    }
+    const outcome = await consumeAuthLink(parsed);
+    if (outcome === MISSING_LINK_PARAMS) return 'The sign-in link is incomplete. Try signing in again.';
+    if (outcome && isVerifierMissing(outcome)) return VERIFIER_MISSING_MESSAGE;
+    return outcome;
   }, []);
 
   useEffect(() => {

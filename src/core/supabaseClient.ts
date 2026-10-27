@@ -1,5 +1,5 @@
-// Must precede supabase-js: auth-js builds the PKCE code_verifier from
-// crypto.getRandomValues and silently falls back to Math.random() when crypto is absent.
+// Must precede supabase-js: auth-js draws its random values from crypto and silently
+// falls back to Math.random() when crypto is absent.
 import 'react-native-get-random-values';
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,6 +25,9 @@ export const supabase = createClient(url, anonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
-    flowType: 'pkce',
+    // Implicit, not PKCE: reset and confirmation links are opened from a mailbox, often on a
+    // different device, and a PKCE code only redeems where its verifier was stored. AuthContext
+    // still redeems ?code links, so ones already sent keep working on the device that asked.
+    flowType: 'implicit',
   },
 });
