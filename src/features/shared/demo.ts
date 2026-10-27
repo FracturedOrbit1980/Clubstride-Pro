@@ -14,7 +14,7 @@ export const DEMO_USER_ID = 'preview-coach';
 
 export const DEMO_MEMBERSHIP: Membership = {
   teamId: DEMO_TEAM_ID,
-  teamName: 'Clubstride United',
+  teamName: 'Clubstride FC',
   role: 'coach',
 };
 
@@ -26,21 +26,18 @@ const player = (index: number, shirt: number, name: string, position: string): S
   available: true,
 });
 
+/** The ten players from Clubstride Lite, so the preview roster matches the squad people already know. */
 export const DEMO_PLAYERS: SquadPlayerRow[] = [
-  player(1, 1, 'Kwanele Dlamini', 'Goalkeeper'),
-  player(2, 2, 'Sipho Mahlangu', 'Right Back'),
-  player(3, 3, 'Daniel van Wyk', 'Centre Back'),
-  player(4, 4, 'Thabo Nkosi', 'Centre Back'),
-  player(5, 5, 'Marco Silva', 'Left Back'),
-  player(6, 6, 'Liam Fischer', 'Defensive Midfielder'),
-  player(7, 7, 'Alex Meyer', 'Midfielder'),
-  player(8, 8, 'Aiden Pillay', 'Central Midfielder'),
-  player(9, 9, 'Jordan Meyer', 'Striker'),
-  player(10, 10, 'Sam Cele', 'Forward'),
-  player(11, 11, 'Ethan Naidoo', 'Right Winger'),
-  player(12, 12, 'Lerato Mokoena', 'Left Winger'),
-  player(13, 13, 'Ruben Botha', 'Attacking Midfielder'),
-  player(14, 14, 'Callum Petersen', 'Striker'),
+  player(1, 1, 'Mateo Rossi', 'Goalkeeper'),
+  player(2, 2, 'Axel Lindqvist', 'Defender'),
+  player(3, 4, 'Julian Vance', 'Defender'),
+  player(4, 5, 'Tariq Sterling', 'Defender'),
+  player(5, 7, 'Kaelan Diaz', 'Forward'),
+  player(6, 8, 'Leo De Jong', 'Midfielder'),
+  player(7, 9, 'Noah Sinclair', 'Forward'),
+  player(8, 10, 'Liam Vance', 'Midfielder'),
+  player(9, 11, 'Sami Morales', 'Midfielder'),
+  player(10, 14, 'Lucas Chen', 'Forward'),
 ];
 
 export const DEMO_TRAINING: TrainingSettings = {
@@ -54,9 +51,9 @@ export const DEMO_DRILLS: Drill[] = [
   { id: 'preview-drill-3', name: 'Pressing 3v3', focus: 'Pressing', minutes: 10, notes: 'Trigger on the backward pass.' },
 ];
 
-/** Eleven present, one late, one excused and one absent: 12 of 14, the 86% the register shows. */
+/** Seven present, one late, one excused and one absent: 8 of 10, the 80% the register shows. */
 const DEMO_STATUSES: AttendanceStatus[] = [
-  ...Array<AttendanceStatus>(11).fill('present'),
+  ...Array<AttendanceStatus>(7).fill('present'),
   'late',
   'excused',
   'absent',
