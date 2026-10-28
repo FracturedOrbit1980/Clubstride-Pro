@@ -5,7 +5,6 @@ import { supabase } from '../../../core/supabaseClient';
 import { BrandLockup } from '../../shared/components/BrandLockup';
 import { ci } from '../../shared/ci';
 import { cacheKey, readCache, writeCache } from '../attendance/cache';
-import { parseSquadRows, type SquadPlayerRow } from '../attendance/squad';
 import {
   formatTrainingDays,
   parseTrainingSettings,
@@ -13,82 +12,73 @@ import {
   type TrainingSettings,
 } from '../attendance/trainingDays';
 import { formatWeekRange, mondayOf, sessionToday } from '../attendance/week';
-import { DEMO_MEMBERSHIP, DEMO_PLAYERS, DEMO_USER_ID, previewTrainingSettings } from '../../shared/demo';
+import { DEMO_USER_ID, previewTrainingSettings } from '../../shared/demo';
+import { useClubRoster } from '../../shared/ClubRosterProvider';
 
 type Phase = 'loading' | 'ready';
 
 /**
- * The Lite lens over the same account: who is in the squad and when they train, with no Pro
- * screens and no writes. Lite's match-day tools live in the Lite app, so editing here would
- * be a second, divergent implementation of the same session.
+ * The Lite lens over the selected team: the shared roster and training days, whether the
+ * team lives on this device or in the club. Pro adds tools without changing this data.
  */
 export const LiteWeekScreen: React.FC<{
   onOpenSettings: () => void;
   onSwitchToPro: () => void;
 }> = ({ onOpenSettings, onSwitchToPro }) => {
-  const { memberships, user, preview } = useAuth();
-  const membership = preview ? DEMO_MEMBERSHIP : memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
+  const { user } = useAuth();
+  const { membership, local, preview, previewPlayers, revision, warning } = useClubRoster();
   const teamId = membership?.teamId ?? null;
-  const userId = preview ? DEMO_USER_ID : user?.id ?? null;
+  const installationId = local?.installationId ?? null;
+  const userId = preview ? (installationId ? `lite-${installationId}` : DEMO_USER_ID) : user?.id ?? null;
 
   const [phase, setPhase] = useState<Phase>('loading');
-  const [players, setPlayers] = useState<SquadPlayerRow[]>([]);
   const [training, setTraining] = useState<TrainingSettings>({ days: [], recordedAt: null });
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const visiblePlayers = previewPlayers;
 
   useEffect(() => {
+    setTraining({ days: [], recordedAt: null });
+    setError(null);
     if (preview) {
-      setPlayers(DEMO_PLAYERS);
-      setTraining(previewTrainingSettings());
-      setPhase('ready');
-      return;
+      if (!installationId || !teamId || !userId) {
+        if (!warning && !local) setTraining(previewTrainingSettings());
+        setPhase('ready');
+        return;
+      }
+      let active = true;
+      void readCache(cacheKey('training', userId, teamId)).then(result => {
+        if (!active) return;
+        setTraining(parseTrainingSettings(result.raw));
+        setError(result.warning);
+        setPhase('ready');
+      });
+      return () => { active = false; };
     }
     if (!teamId || !userId) {
       setPhase('ready');
       return;
     }
+    setPhase('loading');
     let active = true;
-    const squadKey = cacheKey('squad', userId, teamId);
     const trainingKey = cacheKey('training', userId, teamId);
 
     void (async () => {
-      const [squadRead, trainingRead] = await Promise.all([readCache(squadKey), readCache(trainingKey)]);
+      const trainingRead = await readCache(trainingKey);
       if (!active) return;
 
       const notes: string[] = [];
-      if (squadRead.warning) notes.push(squadRead.warning);
       if (trainingRead.warning) notes.push(trainingRead.warning);
 
-      const cachedSquad = parseSquadRows(squadRead.raw);
       let localTraining = parseTrainingSettings(trainingRead.raw);
-      setPlayers(cachedSquad.players);
       setTraining(localTraining);
       setPhase('ready');
-      if (cachedSquad.dropped > 0) notes.push(`${cachedSquad.dropped} saved squad row(s) could not be read.`);
 
-      const [squadResult, trainingResult] = await Promise.all([
-        supabase
-          .from('players')
-          .select('id, full_name, shirt_number, position_tag, available')
-          .eq('team_id', teamId)
-          .is('deleted_at', null)
-          .order('shirt_number', { ascending: true }),
-        supabase.from('team_settings').select('training_days, recorded_at').eq('id', teamId).maybeSingle(),
-      ]);
+      const trainingResult = await supabase.from('team_settings')
+        .select('training_days, recorded_at').eq('id', teamId).maybeSingle();
       if (!active) return;
 
       const failures: string[] = [];
-      if (squadResult.error) {
-        failures.push(`Squad: ${squadResult.error.message}`);
-      } else {
-        const fresh = parseSquadRows(squadResult.data);
-        setPlayers(fresh.players);
-        if (fresh.dropped > 0) failures.push(`${fresh.dropped} squad row(s) came back unreadable.`);
-        const warning = await writeCache(squadKey, fresh.players);
-        if (warning) failures.push(warning);
-      }
-
       if (trainingResult.error) {
         failures.push(
           localTraining.days.length > 0
@@ -111,7 +101,7 @@ export const LiteWeekScreen: React.FC<{
     return () => {
       active = false;
     };
-  }, [preview, teamId, userId, reloadKey]);
+  }, [preview, installationId, local, revision, warning, teamId, userId, reloadKey]);
 
   const roleLabel = membership
     ? membership.role === 'manager'
@@ -130,9 +120,11 @@ export const LiteWeekScreen: React.FC<{
         </Pressable>
       </View>
       <Text style={styles.title}>Lite view</Text>
-      <Text style={styles.subtitle}>Squad and training days. The match-day tools live in Clubstride Lite.</Text>
+      <Text style={styles.subtitle}>One app, the same selected team and data. Pro adds coaching tools.</Text>
 
-      {!membership ? (
+      {warning ? <Text style={styles.error}>{warning}</Text> : null}
+
+      {!membership && !warning ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>No squad yet</Text>
           <Text style={styles.meta}>
@@ -158,7 +150,7 @@ export const LiteWeekScreen: React.FC<{
           <Text style={styles.label}>Team</Text>
           <Text style={styles.teamName}>{membership.teamName}</Text>
           <Text style={styles.meta}>
-            {roleLabel} · {players.length === 1 ? '1 player' : `${players.length} players`}
+            {roleLabel} · {visiblePlayers.length === 1 ? '1 player' : `${visiblePlayers.length} players`}
           </Text>
         </View>
       ) : null}
@@ -175,9 +167,9 @@ export const LiteWeekScreen: React.FC<{
         </View>
       ) : null}
 
-      {players.length > 0 ? (
+      {visiblePlayers.length > 0 ? (
         <View style={styles.list}>
-          {players.map(player => (
+          {visiblePlayers.map(player => (
             <View key={player.id} style={styles.playerRow}>
               <View style={styles.badge}>
                 <Text style={styles.badgeLabel}>#{player.shirt_number}</Text>

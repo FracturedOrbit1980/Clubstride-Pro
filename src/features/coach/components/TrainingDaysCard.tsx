@@ -4,7 +4,8 @@ import { useAuth } from '../../../core/context/AuthContext';
 import { useSyncQueue } from '../../../core/sync';
 import { supabase } from '../../../core/supabaseClient';
 import { cacheKey, readCache, writeCache } from '../attendance/cache';
-import { DEMO_MEMBERSHIP, DEMO_USER_ID, previewTrainingSettings, savePreviewTraining } from '../../shared/demo';
+import { DEMO_USER_ID, previewTrainingSettings, savePreviewTraining } from '../../shared/demo';
+import { useClubRoster } from '../../shared/ClubRosterProvider';
 import { ci } from '../../shared/ci';
 import {
   formatTrainingDays,
@@ -23,12 +24,13 @@ type Phase = 'loading' | 'ready' | 'failed';
  * team_settings row through one load and one save path.
  */
 export const TrainingDaysCard: React.FC = () => {
-  const { memberships, user, isStaff, preview } = useAuth();
+  const { user, isStaff } = useAuth();
   const { queue } = useSyncQueue();
-  const membership = preview ? DEMO_MEMBERSHIP : memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
+  const { membership, local, preview, warning } = useClubRoster();
   const teamId = membership?.teamId ?? null;
-  const userId = preview ? DEMO_USER_ID : user?.id ?? null;
-  const canEdit = preview || (teamId !== null && isStaff(teamId));
+  const installationId = local?.installationId ?? null;
+  const userId = preview ? (installationId ? `lite-${installationId}` : DEMO_USER_ID) : user?.id ?? null;
+  const canEdit = !(preview && warning) && (preview || (teamId !== null && isStaff(teamId)));
 
   const [days, setDays] = useState<TrainingWeekday[]>([]);
   const [saved, setSaved] = useState<TrainingSettings>({ days: [], recordedAt: null });
@@ -37,12 +39,30 @@ export const TrainingDaysCard: React.FC = () => {
   const [notice, setNotice] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const edited = useRef(false);
+  const editRevision = useRef(0);
+  const savedRef = useRef<TrainingSettings>({ days: [], recordedAt: null });
+  const loadRequest = useRef(0);
+  const scopeRef = useRef('');
 
   const load = useCallback(async () => {
+    const request = ++loadRequest.current;
+    const active = (): boolean => request === loadRequest.current;
+    setError(null);
+    setNotice(null);
+    setSavedNote(null);
     if (preview) {
-      const current = previewTrainingSettings();
+      const result = installationId && teamId && userId
+        ? await readCache(cacheKey('training', userId, teamId))
+        : null;
+      if (!active()) return;
+      const incoming = warning ? { days: [], recordedAt: null }
+        : result ? parseTrainingSettings(result.raw)
+          : local ? { days: [], recordedAt: null } : previewTrainingSettings();
+      const current = pickNewerTrainingSettings(savedRef.current, incoming);
+      savedRef.current = current;
       setSaved(current);
-      setDays(current.days);
+      if (!edited.current) setDays(current.days);
+      if (result?.warning) setNotice(result.warning);
       setPhase('ready');
       return;
     }
@@ -51,15 +71,15 @@ export const TrainingDaysCard: React.FC = () => {
       return;
     }
     setPhase('loading');
-    setError(null);
-    setSavedNote(null);
     const key = cacheKey('training', userId, teamId);
     const cached = await readCache(key);
-    const local = parseTrainingSettings(cached.raw);
+    if (!active()) return;
+    const cachedSettings = pickNewerTrainingSettings(savedRef.current, parseTrainingSettings(cached.raw));
     if (cached.warning) setNotice(cached.warning);
-    if (local.recordedAt) {
-      setSaved(local);
-      if (!edited.current) setDays(local.days);
+    if (cachedSettings.recordedAt) {
+      savedRef.current = cachedSettings;
+      setSaved(cachedSettings);
+      if (!edited.current) setDays(cachedSettings.days);
       setPhase('ready');
     }
 
@@ -68,10 +88,11 @@ export const TrainingDaysCard: React.FC = () => {
       .select('training_days, recorded_at')
       .eq('id', teamId)
       .maybeSingle();
+    if (!active()) return;
 
     if (readError) {
       // A cached copy is still workable; only a cold phone with no copy is a dead end.
-      if (!local.recordedAt) {
+      if (!savedRef.current.recordedAt) {
         setError(`Training days could not be read from the club: ${readError.message}`);
         setPhase('failed');
         return;
@@ -81,28 +102,39 @@ export const TrainingDaysCard: React.FC = () => {
       return;
     }
 
-    const winner = pickNewerTrainingSettings(local, parseTrainingSettings(data));
+    const winner = pickNewerTrainingSettings(savedRef.current, parseTrainingSettings(data));
+    savedRef.current = winner;
     setSaved(winner);
     if (!edited.current) setDays(winner.days);
     setPhase('ready');
     setError(null);
 
-    const warning = await writeCache(key, {
+    const cacheWarning = await writeCache(key, {
       training_days: winner.days,
       recorded_at: winner.recordedAt,
     });
-    if (warning) setNotice(warning);
-  }, [preview, teamId, userId]);
+    if (active() && cacheWarning) setNotice(cacheWarning);
+  }, [preview, installationId, local, warning, teamId, userId]);
 
   useEffect(() => {
+    const scope = `${preview}|${userId ?? ''}|${teamId ?? ''}`;
+    if (scopeRef.current !== scope) {
+      scopeRef.current = scope;
+      edited.current = false;
+      savedRef.current = { days: [], recordedAt: null };
+      setSaved(savedRef.current);
+      setDays([]);
+    }
     void load();
-  }, [load]);
+    return () => { loadRequest.current += 1; };
+  }, [load, preview, userId, teamId]);
 
   const dirty = days.length !== saved.days.length || days.some((day, index) => day !== saved.days[index]);
 
   const toggle = (day: TrainingWeekday): void => {
     if (!canEdit) return;
     edited.current = true;
+    editRevision.current += 1;
     setSavedNote(null);
     setDays(current =>
       current.includes(day) ? current.filter(item => item !== day) : normalizeTrainingDays([...current, day]),
@@ -114,11 +146,22 @@ export const TrainingDaysCard: React.FC = () => {
     setNotice(null);
     setSavedNote(null);
     if (preview) {
+      const revision = editRevision.current;
       const next: TrainingSettings = { days, recordedAt: new Date().toISOString() };
-      savePreviewTraining(next);
+      if (installationId) {
+        const warning = await writeCache(cacheKey('training', userId, teamId), {
+          training_days: next.days, recorded_at: next.recordedAt,
+        });
+        if (warning) { setNotice(warning); return; }
+      } else {
+        savePreviewTraining(next);
+      }
+      loadRequest.current += 1;
+      savedRef.current = next;
       setSaved(next);
-      edited.current = false;
-      setSavedNote('Saved for this preview. Sign in to save training days for a real squad.');
+      setPhase('ready');
+      if (editRevision.current === revision) edited.current = false;
+      setSavedNote(installationId ? 'Saved on this device for Lite and Pro.' : 'Saved for this preview. Sign in to save training days for a real squad.');
       return;
     }
     const recordedAt = new Date().toISOString();
@@ -138,7 +181,10 @@ export const TrainingDaysCard: React.FC = () => {
       return;
     }
 
-    setSaved({ days, recordedAt });
+    loadRequest.current += 1;
+    savedRef.current = { days, recordedAt };
+    setSaved(savedRef.current);
+    setPhase('ready');
     edited.current = false;
     setSavedNote(
       days.length === 0
@@ -156,7 +202,7 @@ export const TrainingDaysCard: React.FC = () => {
     return (
       <View style={styles.card}>
         <Text style={styles.label}>Training days</Text>
-        <Text style={styles.meta}>Training days belong to a squad, and this account is not on one yet.</Text>
+        <Text style={warning ? styles.error : styles.meta}>{warning ?? 'Training days belong to a squad, and this account is not on one yet.'}</Text>
       </View>
     );
   }
@@ -203,6 +249,7 @@ export const TrainingDaysCard: React.FC = () => {
         <Text style={styles.readOnly}>Only a coach or manager can change training days.</Text>
       )}
 
+      {warning ? <Text style={styles.error}>{warning}</Text> : null}
       {savedNote ? <Text style={styles.saved}>{savedNote}</Text> : null}
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 

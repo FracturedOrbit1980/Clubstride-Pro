@@ -21,15 +21,9 @@ import {
 } from '../attendance/attendance';
 import { cacheKey, readCache, writeCache } from '../attendance/cache';
 import { attendanceRegisterFileName, buildAttendanceRegisterPdf } from '../attendance/register';
-import { parseSquadRows, type SquadPlayerRow } from '../attendance/squad';
 import { ci } from '../../shared/ci';
-import {
-  DEMO_MEMBERSHIP,
-  DEMO_PLAYERS,
-  DEMO_USER_ID,
-  demoAttendance,
-  previewTrainingSettings,
-} from '../../shared/demo';
+import { DEMO_USER_ID, demoAttendance, previewTrainingSettings } from '../../shared/demo';
+import { useClubRoster } from '../../shared/ClubRosterProvider';
 import {
   parseTrainingSettings,
   pickNewerTrainingSettings,
@@ -72,17 +66,18 @@ const downloadRegisterOnWeb = (bytes: Uint8Array<ArrayBuffer>, fileName: string)
  * before the network is asked, and a failed refresh is shown instead of leaving a blank list.
  */
 export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpenSetup }) => {
-  const { memberships, user, isStaff, preview } = useAuth();
+  const { user, isStaff } = useAuth();
   const { queue } = useSyncQueue();
-  const membership = preview ? DEMO_MEMBERSHIP : memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
+  const { membership, local, preview, previewPlayers, revision, warning } = useClubRoster();
   const teamId = membership?.teamId ?? null;
-  const userId = preview ? DEMO_USER_ID : user?.id ?? null;
-  const canEdit = preview || (teamId !== null && isStaff(teamId));
+  const installationId = local?.installationId ?? null;
+  const userId = preview ? (installationId ? `lite-${installationId}` : DEMO_USER_ID) : user?.id ?? null;
+  const canEdit = !(preview && warning) && (preview || (teamId !== null && isStaff(teamId)));
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [reloadKey, setReloadKey] = useState(0);
   const [weekStart, setWeekStart] = useState(() => mondayOf(sessionToday()));
-  const [players, setPlayers] = useState<SquadPlayerRow[]>([]);
+  const visiblePlayers = previewPlayers;
   const [training, setTraining] = useState<TrainingSettings>({ days: [], recordedAt: null });
   const [records, setRecords] = useState<AttendanceMap>({});
   const [selectedDate, setSelectedDate] = useState('');
@@ -100,14 +95,14 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
 
   const persistRecords = useCallback(
     (map: AttendanceMap): void => {
-      if (preview || !userId || !teamId) return;
+      if ((preview && !installationId) || !userId || !teamId) return;
       const key = cacheKey('attendance', userId, teamId);
       saveChain.current = saveChain.current.then(async () => {
         const warning = await writeCache(key, Object.values(map));
         if (warning) setNotice(warning);
       });
     },
-    [preview, teamId, userId],
+    [preview, installationId, teamId, userId],
   );
 
   const mergeRecords = useCallback(
@@ -123,14 +118,6 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
   // --- local cache first, then the club ------------------------------------------------
 
   useEffect(() => {
-    if (preview) {
-      trainingRef.current = previewTrainingSettings();
-      setPlayers(DEMO_PLAYERS);
-      setTraining(trainingRef.current);
-      setPhase('ready');
-      return;
-    }
-
     let active = true;
     const scope = `${userId ?? ''}|${teamId ?? ''}`;
     if (scopeRef.current !== scope) {
@@ -139,7 +126,6 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
       trainingRef.current = { days: [], recordedAt: null };
       setRecords({});
       setTraining(trainingRef.current);
-      setPlayers([]);
       setSelectedDate('');
       setNotice(null);
       setBaseError(null);
@@ -149,6 +135,32 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
       if (teamId && userId) setPhase('loading');
     }
 
+    if (preview) {
+      if (!installationId || !teamId || !userId) {
+        trainingRef.current = warning || local ? { days: [], recordedAt: null } : previewTrainingSettings();
+        setTraining(trainingRef.current);
+        setPhase('ready');
+        return;
+      }
+      void (async () => {
+        const [trainingRead, attendanceRead] = await Promise.all([
+          readCache(cacheKey('training', userId, teamId)),
+          readCache(cacheKey('attendance', userId, teamId)),
+        ]);
+        if (!active) return;
+        const parsed = parseAttendanceRows(attendanceRead.raw);
+        trainingRef.current = parseTrainingSettings(trainingRead.raw);
+        setTraining(trainingRef.current);
+        recordsRef.current = mergeAttendance(recordsRef.current, parsed.rows);
+        setRecords(recordsRef.current);
+        const notices = [trainingRead.warning, attendanceRead.warning,
+          parsed.dropped ? `${parsed.dropped} saved attendance row(s) could not be read.` : null].filter(Boolean);
+        setNotice(notices.join(' ') || null);
+        setPhase('ready');
+      })();
+      return () => { active = false; };
+    }
+
     if (!teamId || !userId) {
       setPhase('ready');
       return () => {
@@ -156,63 +168,40 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
       };
     }
 
-    const squadKey = cacheKey('squad', userId, teamId);
     const trainingKey = cacheKey('training', userId, teamId);
     const attendanceKeyOnPhone = cacheKey('attendance', userId, teamId);
 
     void (async () => {
-      const [squadRead, trainingRead, attendanceRead] = await Promise.all([
-        readCache(squadKey),
+      const [trainingRead, attendanceRead] = await Promise.all([
         readCache(trainingKey),
         readCache(attendanceKeyOnPhone),
       ]);
       if (!active) return;
 
       const notes: string[] = [];
-      for (const warning of [squadRead.warning, trainingRead.warning, attendanceRead.warning]) {
+      for (const warning of [trainingRead.warning, attendanceRead.warning]) {
         if (warning) notes.push(warning);
       }
 
-      const cachedSquad = parseSquadRows(squadRead.raw);
       const cachedTraining = parseTrainingSettings(trainingRead.raw);
       const cachedAttendance = parseAttendanceRows(attendanceRead.raw);
 
-      setPlayers(cachedSquad.players);
       trainingRef.current = pickNewerTrainingSettings(trainingRef.current, cachedTraining);
       setTraining(trainingRef.current);
       mergeRecords(cachedAttendance.rows);
       setPhase('ready');
 
-      if (cachedSquad.dropped > 0) notes.push(`${cachedSquad.dropped} saved squad row(s) could not be read.`);
       if (cachedAttendance.dropped > 0) notes.push(`${cachedAttendance.dropped} saved attendance row(s) could not be read.`);
       if (notes.length > 0) setNotice(notes.join(' '));
 
-      const [squadResult, trainingResult] = await Promise.all([
-        supabase
-          .from('players')
-          .select('id, full_name, shirt_number, position_tag, available')
-          .eq('team_id', teamId)
-          .is('deleted_at', null)
-          .order('shirt_number', { ascending: true }),
-        supabase
-          .from('team_settings')
-          .select('training_days, recorded_at')
-          .eq('id', teamId)
-          .maybeSingle(),
-      ]);
+      const trainingResult = await supabase
+        .from('team_settings')
+        .select('training_days, recorded_at')
+        .eq('id', teamId)
+        .maybeSingle();
       if (!active) return;
 
       const failures: string[] = [];
-      if (squadResult.error) {
-        failures.push(`Squad: ${squadResult.error.message}`);
-      } else {
-        const fresh = parseSquadRows(squadResult.data);
-        setPlayers(fresh.players);
-        if (fresh.dropped > 0) failures.push(`${fresh.dropped} squad row(s) came back unreadable.`);
-        const warning = await writeCache(squadKey, fresh.players);
-        if (warning) failures.push(warning);
-      }
-
       if (trainingResult.error) {
         // The strip above is already drawn from the cached days, so say that rather than
         // implying the squad has no schedule until the club can be reached.
@@ -238,13 +227,13 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
     return () => {
       active = false;
     };
-  }, [preview, teamId, userId, reloadKey, mergeRecords]);
+  }, [preview, installationId, local, revision, warning, teamId, userId, reloadKey, mergeRecords]);
 
   // --- the displayed week ---------------------------------------------------------------
 
   useEffect(() => {
     if (preview) {
-      mergeRecords(demoAttendance(weekStart, sessionToday()));
+      if (!installationId && !warning) mergeRecords(demoAttendance(weekStart, sessionToday()));
       return;
     }
     if (!teamId || !userId) return;
@@ -272,7 +261,7 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
     return () => {
       active = false;
     };
-  }, [preview, teamId, userId, weekStart, reloadKey, mergeRecords]);
+  }, [preview, installationId, warning, revision, teamId, userId, weekStart, reloadKey, mergeRecords]);
 
   // --- which session is open --------------------------------------------------------------
 
@@ -289,7 +278,7 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
     });
   }, [sessions, today]);
 
-  const playerIds = useMemo(() => players.map(player => player.id), [players]);
+  const playerIds = useMemo(() => visiblePlayers.map(player => player.id), [visiblePlayers]);
   const counts = useMemo(
     () => (selectedDate ? countStatuses(playerIds, records, selectedDate) : null),
     [playerIds, records, selectedDate],
@@ -316,6 +305,7 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
       const next = withAttendance(recordsRef.current, row);
       recordsRef.current = next;
       setRecords(next);
+      if (installationId) persistRecords(next);
       return;
     }
 
@@ -348,7 +338,7 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
   };
 
   const exportRegister = async (): Promise<void> => {
-    if (exporting || !membership || sessions.length === 0 || players.length === 0) return;
+    if (exporting || !membership || sessions.length === 0 || visiblePlayers.length === 0) return;
     setExportError(null);
     setExporting(true);
     try {
@@ -357,7 +347,7 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
         weekStart,
         trainingDays: training.days,
         sessions,
-        players,
+        players: visiblePlayers,
         records: recordsRef.current,
       });
       const fileName = attendanceRegisterFileName(membership.teamName, weekStart);
@@ -385,7 +375,7 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
     }
   };
 
-  const canExport = sessions.length > 0 && players.length > 0;
+  const canExport = sessions.length > 0 && visiblePlayers.length > 0;
 
   const roleLabel = membership
     ? membership.role === 'manager'
@@ -405,9 +395,10 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
         </Text>
       </View>
 
+      {warning ? <Text style={styles.error}>{warning}</Text> : null}
       {phase === 'loading' ? <ActivityIndicator color={ci.color.primary} /> : null}
 
-      {phase === 'ready' && !membership ? (
+      {phase === 'ready' && !membership && !warning ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>No squad on this account</Text>
           <Text style={styles.meta}>Attendance belongs to a squad, and this account is not on one yet.</Text>
@@ -545,7 +536,7 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
                 <View style={styles.sessionFooter}>
                   <Text style={styles.saveHint}>
                     {preview
-                      ? 'Preview squad: marks change this screen only and are not sent anywhere.'
+                      ? installationId ? 'These marks save on this device for the same team in Lite and Pro. Cloud storage requires an authorized matching club team.' : 'Preview squad: marks change this screen only and are not sent anywhere.'
                       : canEdit
                         ? 'Marks save on this phone first, then sync.'
                         : 'Only a coach or manager can change these marks.'}
@@ -556,10 +547,10 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
                 </View>
               </View>
 
-              {players.length === 0 ? (
+              {visiblePlayers.length === 0 ? (
                 <Text style={styles.meta}>No players are visible to this account.</Text>
               ) : (
-                players.map(player => {
+                visiblePlayers.map(player => {
                   const entry = records[attendanceKey(player.id, selectedDate)];
                   return (
                     <View key={player.id} style={styles.playerRow}>

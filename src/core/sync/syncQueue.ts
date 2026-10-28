@@ -297,8 +297,10 @@ export class SyncQueue {
       // rather than the snapshot taken at the start - the entries added mid-pass would otherwise
       // be dropped on the floor with the old array.
       const live = this.state;
+      let anotherPass = false;
       if (live && this.userId === userId && this.key === key) {
         const kept = live.entries.filter(entry => !finished.has(entry));
+        anotherPass = !networkDown && kept.some(entry => !order.includes(entry) && !entry.blocked && entry.nextRetryAtMs === 0);
         if (kept.length === 0) this.lastFlushError = null;
         this.state = { nextSeq: live.nextSeq, entries: kept };
         this.persist(this.state);
@@ -306,6 +308,7 @@ export class SyncQueue {
       this.flushing = false;
       this.notify();
       this.scheduleRetry();
+      if (anotherPass) queueMicrotask(() => void this.drain());
     }
   }
 

@@ -53,12 +53,8 @@ import {
   shareProfileMessage,
   shareProfileWebLink,
 } from '../player/shareCode';
-import {
-  DEMO_MEMBERSHIP,
-  demoAssessment,
-  demoMatchLog,
-  previewShareCode,
-} from '../../shared/demo';
+import { demoAssessment, demoMatchLog, previewShareCode } from '../../shared/demo';
+import { useClubRoster } from '../../shared/ClubRosterProvider';
 import { ci } from '../../shared/ci';
 import { savePdf } from '../../shared/pdfExport';
 
@@ -79,12 +75,18 @@ export const PlayerProfileScreen: React.FC<{
   player: SquadPlayerRow;
   onBack: () => void;
 }> = ({ player, onBack }) => {
-  const { memberships, user, isStaff, preview } = useAuth();
+  const { user, isStaff } = useAuth();
   const { queue } = useSyncQueue();
-  const membership = preview ? DEMO_MEMBERSHIP : memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
+  const { membership, local, preview, warning, matchLog, matchRevision } = useClubRoster();
   const teamId = membership?.teamId ?? null;
+  const installationId = local?.installationId ?? null;
   const userId = preview ? null : user?.id ?? null;
-  const canEdit = preview || (teamId !== null && isStaff(teamId));
+  // Assessments are scoped to the player for both device teams and club teams.
+  const assessmentUserId = installationId ? `lite-${installationId}` : userId;
+  const localAssessmentKey = teamId && assessmentUserId
+    ? cacheKey('assessment', assessmentUserId, `${teamId}.${player.id}`)
+    : null;
+  const canEdit = !(preview && warning) && (preview || (teamId !== null && isStaff(teamId)));
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [reloadKey, setReloadKey] = useState(0);
@@ -108,29 +110,61 @@ export const PlayerProfileScreen: React.FC<{
 
   const entriesRef = useRef<PlayerMatchEntry[]>([]);
   const assessmentRef = useRef<PlayerAssessment | null>(null);
+  const dirtyRef = useRef(false);
+  // Only matchRevision belongs in the load effect's dependencies: the provider hands out a new
+  // function on every render, and depending on that would re-run every club read on each poll.
+  const matchLogRef = useRef(matchLog);
+  matchLogRef.current = matchLog;
 
   const applyAssessment = useCallback((assessment: PlayerAssessment | null): void => {
     assessmentRef.current = assessment;
-    if (!assessment) return;
-    setScores(assessment.scores);
-    setNotes(assessment.coachNotes ?? '');
-    setSavedAt(assessment.recordedAt);
+    dirtyRef.current = false;
+    setScores(assessment?.scores ?? {});
+    setNotes(assessment?.coachNotes ?? '');
+    setSavedAt(assessment?.recordedAt ?? null);
     setDirty(false);
   }, []);
 
   useEffect(() => {
+    if (preview && warning) {
+      applyAssessment(null);
+      entriesRef.current = [];
+      setEntries([]);
+      setShareCode(null);
+      setPhase('ready');
+      return;
+    }
+    if (preview && localAssessmentKey) {
+      let active = true;
+      if (!dirtyRef.current) applyAssessment(null);
+      // A device team's game time is the history Lite itself recorded for the same squad.
+      const sharedLog = matchLogRef.current(player.id);
+      entriesRef.current = sharedLog;
+      setEntries(sharedLog);
+      setShareCode(null);
+      setShareRevoked(false);
+      setLoadError(null);
+      setPhase('loading');
+      void readCache(localAssessmentKey).then(result => {
+        if (!active) return;
+        const assessment = parseAssessmentRow(result.raw);
+        if (!dirtyRef.current) applyAssessment(assessment?.playerId === player.id ? assessment : null);
+        setLoadError(result.warning ?? (result.raw !== null && assessment?.playerId !== player.id ? 'The saved Lite assessment could not be read.' : null));
+        setPhase('ready');
+      });
+      return () => { active = false; };
+    }
     if (preview) {
-      const demo = demoAssessment(player.id);
-      applyAssessment(demo);
-      entriesRef.current = demoMatchLog(player.id);
+      applyAssessment(local ? null : demoAssessment(player.id));
+      entriesRef.current = local ? [] : demoMatchLog(player.id);
       setEntries(entriesRef.current);
-      setShareCode(previewShareCode(player.id));
+      setShareCode(local ? null : previewShareCode(player.id));
       setShareRevoked(false);
       setPhase('ready');
       return;
     }
 
-    if (!teamId || !userId) {
+    if (!teamId || !userId || !localAssessmentKey) {
       setPhase('ready');
       return;
     }
@@ -139,7 +173,7 @@ export const PlayerProfileScreen: React.FC<{
     setPhase('loading');
     setLoadError(null);
 
-    const assessmentKey = cacheKey('assessment', userId, teamId);
+    const assessmentKey = localAssessmentKey;
     const matchesKey = cacheKey('matches', userId, teamId);
     const lineupKey = cacheKey('lineup', userId, teamId);
 
@@ -160,8 +194,13 @@ export const PlayerProfileScreen: React.FC<{
       const cachedMatches = parseMatchRows(matchesRead.raw);
       const cachedLineup = parseLineupRows(lineupRead.raw);
 
-      applyAssessment(pickNewerAssessment(assessmentRef.current, cachedAssessment));
-      entriesRef.current = buildMatchLog(player.id, cachedMatches.rows, cachedLineup.rows);
+      if (assessmentRead.raw !== null && cachedAssessment?.playerId !== player.id) {
+        notesForCoach.push('The saved assessment does not belong to this player or could not be read.');
+      }
+      if (!dirtyRef.current) applyAssessment(pickNewerAssessment(assessmentRef.current, cachedAssessment?.playerId === player.id ? cachedAssessment : null));
+      // Shared history first: it holds the matches this phone recorded that have not reached the
+      // club database yet, and mergeMatchLog keeps one row per match by its version.
+      entriesRef.current = mergeMatchLog(buildMatchLog(player.id, cachedMatches.rows, cachedLineup.rows), matchLogRef.current(player.id));
       setEntries(entriesRef.current);
       setPhase('ready');
 
@@ -195,8 +234,10 @@ export const PlayerProfileScreen: React.FC<{
       if (assessmentResult.error) {
         failures.push(`Ratings: showing the copy saved on this phone. The club copy could not be read: ${assessmentResult.error.message}`);
       } else {
-        const winner = pickNewerAssessment(assessmentRef.current, parseAssessmentRow(assessmentResult.data));
-        if (winner && winner !== assessmentRef.current) applyAssessment(winner);
+        const incoming = parseAssessmentRow(assessmentResult.data);
+        const winner = pickNewerAssessment(assessmentRef.current, incoming?.playerId === player.id ? incoming : null);
+        if (incoming && incoming.playerId !== player.id) failures.push('The club assessment does not belong to this player.');
+        if (!dirtyRef.current && winner && winner !== assessmentRef.current) applyAssessment(winner);
         if (winner) {
           const warning = await writeCache(assessmentKey, toAssessmentRow(winner, teamId));
           if (warning) failures.push(warning);
@@ -238,7 +279,34 @@ export const PlayerProfileScreen: React.FC<{
     return () => {
       active = false;
     };
-  }, [applyAssessment, player.id, preview, reloadKey, teamId, userId]);
+  }, [applyAssessment, local, localAssessmentKey, matchRevision, player.id, preview, reloadKey, teamId, userId, warning]);
+
+  // The per-player cache is shared by browser tabs, but never replaces an unsaved edit.
+  useEffect(() => {
+    if (!localAssessmentKey || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    let active = true;
+    const refresh = (): void => {
+      if (dirtyRef.current) return;
+      void readCache(localAssessmentKey).then(result => {
+        if (!active || dirtyRef.current) return;
+        const assessment = parseAssessmentRow(result.raw);
+        if (assessment?.playerId === player.id) {
+          applyAssessment(pickNewerAssessment(assessmentRef.current, assessment));
+        }
+        if (result.warning) setLoadError(result.warning);
+      });
+    };
+    const changed = (event: StorageEvent): void => {
+      if (event.key === localAssessmentKey || event.key === null) refresh();
+    };
+    window.addEventListener('storage', changed);
+    window.addEventListener('focus', refresh);
+    return () => {
+      active = false;
+      window.removeEventListener('storage', changed);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [applyAssessment, dirty, localAssessmentKey, player.id]);
 
   // --- the share code --------------------------------------------------------------------
 
@@ -277,6 +345,7 @@ export const PlayerProfileScreen: React.FC<{
 
   const rate = (key: MetricKey, value: number): void => {
     if (!canEdit) return;
+    dirtyRef.current = true;
     setScores(current => setScore(current, key, value));
     setDirty(true);
     setSaveError(null);
@@ -295,12 +364,25 @@ export const PlayerProfileScreen: React.FC<{
     setSaveError(null);
     setSaveNotice(null);
 
+    if (preview && localAssessmentKey && teamId) {
+      applyAssessment(next);
+      void writeCache(localAssessmentKey, toAssessmentRow(next, teamId)).then(warning => {
+        if (warning) {
+          setSaveError(warning);
+          dirtyRef.current = true;
+          setDirty(true);
+        } else {
+          setSaveNotice('Feedback saved on this device.');
+        }
+      });
+      return;
+    }
     if (preview) {
       applyAssessment(next);
       setSaveNotice('Preview: saved on this screen only.');
       return;
     }
-    if (!teamId || !userId) {
+    if (!teamId || !userId || !localAssessmentKey) {
       setSaveError('This account is not attached to a squad, so the rating was not saved.');
       return;
     }
@@ -310,7 +392,7 @@ export const PlayerProfileScreen: React.FC<{
     }
     applyAssessment(next);
     setSaveNotice('Saved on this phone. It syncs when the connection returns.');
-    void writeCache(cacheKey('assessment', userId, teamId), toAssessmentRow(next, teamId)).then(warning => {
+    void writeCache(localAssessmentKey, toAssessmentRow(next, teamId)).then(warning => {
       if (warning) setSaveNotice(warning);
     });
   };
@@ -404,7 +486,7 @@ export const PlayerProfileScreen: React.FC<{
         scores,
         coachNotes: notes.trim() || null,
         minutes: summary,
-        shareCode: shareCode && !shareRevoked ? shareCode : null,
+        shareCode: !installationId && shareCode && !shareRevoked ? shareCode : null,
         generatedAt,
       });
       await savePdf(bytes, playerReportFileName(player.full_name, generatedAt), 'Player report');
@@ -453,12 +535,13 @@ export const PlayerProfileScreen: React.FC<{
             <Text style={styles.exportLabel}>{exporting ? 'Preparing report...' : 'Export report PDF'}</Text>
           </Pressable>
           <Text style={styles.exportHint}>
-            One page with the ratings, game time and share code - send it to the family.
+            {installationId ? 'One page with device ratings and notes. Online sharing requires an authorized matching club team.' : 'One page with the ratings, game time and share code - send it to the family.'}
           </Text>
           {exportError ? <Text style={styles.error}>{exportError}</Text> : null}
         </View>
       ) : null}
 
+      {warning ? <Text style={styles.error}>{warning}</Text> : null}
       {phase === 'loading' ? <ActivityIndicator color={ci.color.primary} /> : null}
 
       {loadError ? (
@@ -497,8 +580,9 @@ export const PlayerProfileScreen: React.FC<{
               </View>
             ) : (
               <Text style={styles.hint}>
-                Nothing counted yet. Game time adds up every completed match, including the ones this player was not
-                picked for.
+                {local
+                  ? 'No completed match for this squad yet. Finish a match in Lite and its game time appears here.'
+                  : 'Nothing counted yet. Game time adds up every completed match, including the ones this player was not picked for.'}
               </Text>
             )}
           </View>
@@ -579,6 +663,7 @@ export const PlayerProfileScreen: React.FC<{
                 <TextInput
                   value={notes}
                   onChangeText={text => {
+                    dirtyRef.current = true;
                     setNotes(text);
                     setDirty(true);
                     setSaveNotice(null);
@@ -595,7 +680,7 @@ export const PlayerProfileScreen: React.FC<{
                     : savedAt
                       ? `Saved ${formatDay(savedAt.slice(0, 10))}.`
                       : 'Not saved yet.'}{' '}
-                  Saves on this phone first, then syncs.
+                  {installationId ? 'Saved on this device only.' : 'Saves on this phone first, then syncs.'}
                 </Text>
                 {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
                 {saveNotice ? <Text style={styles.notice}>{saveNotice}</Text> : null}
@@ -615,7 +700,7 @@ export const PlayerProfileScreen: React.FC<{
             )}
           </View>
 
-          {canEdit ? (
+          {canEdit && !installationId ? (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Share with family</Text>
               <Text style={styles.hint}>

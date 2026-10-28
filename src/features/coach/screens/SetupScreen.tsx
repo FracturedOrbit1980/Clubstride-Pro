@@ -5,7 +5,8 @@ import { loadOutbox, mintRowId, outboxStorageKey, useSyncQueue } from '../../../
 import { supabase } from '../../../core/supabaseClient';
 import { cacheKey, readCache, writeCache } from '../attendance/cache';
 import { ci } from '../../shared/ci';
-import { DEMO_DRILLS, DEMO_MEMBERSHIP, DEMO_USER_ID } from '../../shared/demo';
+import { DEMO_DRILLS, DEMO_USER_ID } from '../../shared/demo';
+import { useClubRoster } from '../../shared/ClubRosterProvider';
 import { TrainingDaysCard } from '../components/TrainingDaysCard';
 import {
   draftFromDrill,
@@ -38,12 +39,13 @@ type Pane = { kind: 'list' } | { kind: 'edit'; draft: DrillDraft } | { kind: 'ru
  * says so, because the setup screen is often used at a ground with no signal.
  */
 export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpenAttendance }) => {
-  const { memberships, user, isStaff, preview } = useAuth();
+  const { user, isStaff } = useAuth();
   const { queue } = useSyncQueue();
-  const membership = preview ? DEMO_MEMBERSHIP : memberships.find(m => m.role !== 'parent') ?? memberships[0] ?? null;
+  const { membership, local, preview, warning } = useClubRoster();
   const teamId = membership?.teamId ?? null;
-  const userId = preview ? DEMO_USER_ID : user?.id ?? null;
-  const canEdit = preview || (teamId !== null && isStaff(teamId));
+  const installationId = local?.installationId ?? null;
+  const userId = preview ? (installationId ? `lite-${installationId}` : DEMO_USER_ID) : user?.id ?? null;
+  const canEdit = !(preview && warning) && (preview || (teamId !== null && isStaff(teamId)));
 
   const [drills, setDrills] = useState<Drill[]>([]);
   const [drillsPhase, setDrillsPhase] = useState<Phase>('loading');
@@ -62,8 +64,8 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
    * authority for those rows, so it is merged over the server's copy.
    */
   const loadDrills = useCallback(async () => {
-    if (preview) {
-      setDrills(DEMO_DRILLS);
+    if (preview && !installationId) {
+      setDrills(warning || local ? [] : DEMO_DRILLS);
       setDrillsPhase('ready');
       return;
     }
@@ -76,11 +78,16 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
     setDrillsError(null);
     const key = cacheKey('drills', userId, teamId);
     const cached = await readCache(key);
-    const local = parseDrillRows(cached.raw);
+    const localDrills = parseDrillRows(cached.raw);
     if (cached.warning) setDrillNotice(cached.warning);
     if (cached.raw !== null) {
-      setDrills(local.drills);
+      setDrills(localDrills.drills);
       setDrillsPhase('ready');
+    }
+    if (preview) {
+      setDrills(localDrills.drills);
+      setDrillsPhase('ready');
+      return;
     }
 
     const outbox = await loadOutbox(outboxStorageKey(userId));
@@ -112,7 +119,7 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
         setDrillsPhase('failed');
         return;
       }
-      setDrills(mergeDrills(withoutDrills(local.drills, removed), pending));
+      setDrills(mergeDrills(withoutDrills(localDrills.drills, removed), pending));
       setDrillNotice(
         `Showing the drills saved on this phone. The club could not be reached: ${readError.message}`,
       );
@@ -125,9 +132,9 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
     setDrills(merged);
     setDrillsPhase('ready');
     if (fresh.dropped > 0) setDrillNotice(`${fresh.dropped} drill row(s) came back unreadable.`);
-    const warning = await writeCache(key, merged.map(toDrillRow));
-    if (warning) setDrillNotice(warning);
-  }, [preview, teamId, userId]);
+    const cacheWarning = await writeCache(key, merged.map(toDrillRow));
+    if (cacheWarning) setDrillNotice(cacheWarning);
+  }, [preview, installationId, local, warning, teamId, userId]);
 
   useEffect(() => {
     void loadDrills();
@@ -139,9 +146,14 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
     const id = draft.id ?? mintRowId();
     const drill = drillFromDraft(draft, id);
     if (preview) {
-      setDrills(sortDrills(draft.id ? drills.map(item => (item.id === id ? drill : item)) : [...drills, drill]));
+      const next = sortDrills(draft.id ? drills.map(item => (item.id === id ? drill : item)) : [...drills, drill]);
+      if (installationId) {
+        const warning = await persistDrills(next);
+        if (warning) return warning;
+      }
+      setDrills(next);
       setPane({ kind: 'list' });
-      setDrillNotice(null);
+      setDrillNotice(installationId ? 'Saved on this device.' : null);
       return null;
     }
     const queued = queue.enqueue({
@@ -168,10 +180,16 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
 
   const deleteDrill = async (draft: DrillDraft): Promise<string | null> => {
     if (!draft.id) return null;
+    if (!canEdit) return 'Only a coach or manager can delete drills for this squad.';
     if (preview) {
-      setDrills(drills.filter(item => item.id !== draft.id));
+      const next = drills.filter(item => item.id !== draft.id);
+      if (installationId) {
+        const warning = await persistDrills(next);
+        if (warning) return warning;
+      }
+      setDrills(next);
       setPane({ kind: 'list' });
-      setDrillNotice(null);
+      setDrillNotice(installationId ? 'Saved on this device.' : null);
       return null;
     }
     const queued = queue.enqueue({
@@ -218,6 +236,7 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
         <Text style={styles.headerMeta}>{membership?.teamName ?? 'No squad yet'}</Text>
       </View>
 
+      {warning ? <Text style={styles.error}>{warning}</Text> : null}
       <TrainingDaysCard />
 
       {membership ? (

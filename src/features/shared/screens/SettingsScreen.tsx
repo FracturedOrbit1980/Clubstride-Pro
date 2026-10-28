@@ -8,6 +8,7 @@ import { TrainingDaysCard } from '../../coach/components/TrainingDaysCard';
 import { isShareCode, normaliseShareCode } from '../../coach/player/shareCode';
 import { ci } from '../ci';
 import type { AppMode } from '../appMode';
+import { useClubRoster } from '../ClubRosterProvider';
 
 type Phase = 'idle' | 'confirming' | 'deleting' | 'failed';
 
@@ -35,12 +36,13 @@ export const SettingsScreen: React.FC<{
   mode: AppMode;
   onModeChange: (next: AppMode) => Promise<string | null>;
   onOpenLite: () => void;
-  /** Only passed while signed out: leaves the sample squad for the sign-in screen. */
+  /** Only passed while signed out: opens account sign-in without changing the selected team. */
   onSignIn?: (() => void) | undefined;
   /** Opens a shared player report by the code printed on its PDF, with no account needed. */
   onOpenSharedProfile?: ((code: string) => void) | undefined;
 }> = ({ mode, onModeChange, onOpenLite, onSignIn, onOpenSharedProfile }) => {
   const { user, tier, memberships, signOut, preview } = useAuth();
+  const { membership, local, warning } = useClubRoster();
   const { pending, blocked, queue } = useSyncQueue();
   const [phase, setPhase] = useState<Phase>('idle');
   const [failure, setFailure] = useState<DeletionFailure | null>(null);
@@ -98,12 +100,14 @@ export const SettingsScreen: React.FC<{
 
       <View style={styles.card}>
         <Text style={styles.label}>Account</Text>
-        <Text style={styles.value}>{preview ? 'Preview - not signed in' : user?.email ?? 'No email on this session'}</Text>
+        <Text style={styles.value}>{preview ? 'Not signed in' : user?.email ?? 'No email on this session'}</Text>
         <Text style={styles.meta}>
           {preview
-            ? 'Pro - 1 sample squad'
-            : `${tier === 'pro' ? 'Pro' : 'Lite'} - ${memberships.length === 0 ? 'no squads' : `${memberships.length} squad(s)`}`}
+            ? local ? 'Your selected team is saved on this device.' : warning ? 'Device team unavailable.' : '1 sample squad'
+            : `${tier === 'pro' ? 'Pro' : 'Lite'} - ${memberships.length === 0 ? 'no club teams' : `${memberships.length} club team(s)`}`}
         </Text>
+        {membership ? <Text style={styles.meta}>Selected team: {membership.teamName}{local ? ' - on this device' : preview ? ' - sample' : ' - club'}</Text> : null}
+        {warning ? <Text style={styles.modeError}>{warning}</Text> : null}
       </View>
 
       <View style={styles.card}>
@@ -124,9 +128,8 @@ export const SettingsScreen: React.FC<{
           ))}
         </View>
         <Text style={styles.meta}>
-          {mode === 'pro'
-            ? 'Squad, register, training and this account tab.'
-            : 'Squad and training days only. The register and training setup come back in Pro.'}
+          Lite and Pro are views of one app, using the same selected team and data in both directions.
+          Pro adds the register, training setup and player feedback.
         </Text>
         {modeError ? <Text style={styles.modeError}>{modeError}</Text> : null}
       </View>
@@ -137,7 +140,7 @@ export const SettingsScreen: React.FC<{
         <View style={styles.card}>
           <Text style={styles.label}>Player reports</Text>
           <Text style={styles.meta}>
-            Every report PDF carries a code. Type it here to open that player's profile without signing in.
+            {local ? 'Enter a shared club report code to open it. Reports saved for this device’s team do not have online share codes.' : "Enter a shared club report code to open that player's profile without signing in."}
           </Text>
           <TextInput
             value={reportCode}
@@ -169,11 +172,13 @@ export const SettingsScreen: React.FC<{
       <View style={styles.card}>
         <Text style={styles.label}>Data on this phone</Text>
         <Text style={styles.meta}>
-          {preview
-            ? 'This is a sample squad bundled with the app. Nothing here is read from or sent to a club.'
-            : unsent === 0
-              ? 'Everything recorded here has reached the club.'
-              : `${unsent} change(s) are still only on this phone. Deleting the account discards them.`}
+          {local
+            ? 'This team stays on this device until an authorized matching club team is selected. Switching Lite and Pro keeps the same team and data; signing in alone does not move it to a different club team.'
+            : preview
+              ? warning ? 'The device team could not be read. Samples are not shown.' : 'This is a sample squad bundled with the app. Nothing here is read from or sent to a club.'
+              : unsent === 0
+                ? 'No club changes are waiting in this phone’s sync queue. Lite and Pro use the same selected club team.'
+                : `${unsent} club change(s) are still only on this phone. Deleting the account discards them.`}
         </Text>
       </View>
 
@@ -181,10 +186,10 @@ export const SettingsScreen: React.FC<{
         <Pressable
           style={styles.secondary}
           onPress={onOpenLite}
-          disabled={!preview && memberships.length === 0}
+          disabled={!membership}
         >
           <Text
-            style={[styles.secondaryLabel, !preview && memberships.length === 0 && styles.disabledLabel]}
+            style={[styles.secondaryLabel, !membership && styles.disabledLabel]}
           >
             Open Lite view
           </Text>

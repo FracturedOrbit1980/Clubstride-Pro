@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/core/context/AuthContext';
@@ -21,6 +21,7 @@ import { SyncStatusBanner } from './src/features/shared/components/SyncStatusBan
 import { BrandLockup } from './src/features/shared/components/BrandLockup';
 import { TabBar, type ProTab } from './src/features/shared/components/TabBar';
 import { ci } from './src/features/shared/ci';
+import { ClubRosterProvider, useClubRoster } from './src/features/shared/ClubRosterProvider';
 
 /**
  * Every AuthStatus gets a screen. 'noProfile' means the signup trigger never wrote public.users,
@@ -50,14 +51,29 @@ type RootView = ProTab | 'lite' | 'player';
 type AuthView = 'signIn' | 'signUp' | 'forgot';
 
 const Root: React.FC = () => {
-  const { status, recovery, preview } = useAuth();
+  const { status, recovery, preview: authPreview, user } = useAuth();
+  const { membership, local, preview, previewPlayers, revision, warning } = useClubRoster();
+  const rosterScope = `${local?.installationId ?? (authPreview ? 'demo' : 'cloud')}|${user?.id ?? ''}|${membership?.teamId ?? ''}|${membership?.role ?? ''}`;
+  const previousScope = useRef(rosterScope);
+  const [playerScope, setPlayerScope] = useState('');
   const [view, setView] = useState<RootView>('squad');
   const [mode, setMode] = useState<AppMode>('pro');
   const [modeReady, setModeReady] = useState(false);
   const [authView, setAuthView] = useState<AuthView>('signIn');
-  // Signed out opens on the bundled sample squad; signing in from Settings is one press away.
+  // Signed out opens the device's Lite squad, or samples when none exists.
   const [showAuth, setShowAuth] = useState(false);
   const [player, setPlayer] = useState<SquadPlayerRow | null>(null);
+  const selectedPlayer = player && playerScope === rosterScope
+    ? preview && warning ? null : previewPlayers.find(next => next.id === player.id) ?? null
+    : null;
+
+  useEffect(() => {
+    if (previousScope.current !== rosterScope || (player && !selectedPlayer)) {
+      previousScope.current = rosterScope;
+      setPlayer(null);
+      setView(current => current === 'player' ? 'squad' : current);
+    }
+  }, [rosterScope, player, selectedPlayer, revision]);
   // A share link outranks the rest of the app: the code is the credential, so this has to open
   // for a visitor with no account at all.
   const [sharedCode, setSharedCode] = useState<string | null>(() =>
@@ -184,6 +200,7 @@ const Root: React.FC = () => {
   const activeTab: ProTab = view === 'lite' || view === 'player' ? 'squad' : view;
 
   const openPlayer = (next: SquadPlayerRow): void => {
+    setPlayerScope(rosterScope);
     setPlayer(next);
     setView('player');
   };
@@ -193,14 +210,15 @@ const Root: React.FC = () => {
       <StatusBar style="light" />
       {preview ? null : <SyncStatusBanner />}
       {mode === 'lite' && view === 'lite' ? (
-        <LiteWeekScreen onOpenSettings={() => setView('settings')} onSwitchToPro={() => void changeMode('pro')} />
+        <LiteWeekScreen key={rosterScope} onOpenSettings={() => setView('settings')} onSwitchToPro={() => void changeMode('pro')} />
       ) : null}
       {mode === 'lite' && view === 'settings' ? (
         <SettingsScreen
+          key={rosterScope}
           mode={mode}
           onModeChange={changeMode}
           onOpenLite={() => setView('lite')}
-          onSignIn={preview ? () => setShowAuth(true) : undefined}
+          onSignIn={authPreview ? () => setShowAuth(true) : undefined}
           onOpenSharedProfile={openSharedCode}
         />
       ) : null}
@@ -210,22 +228,23 @@ const Root: React.FC = () => {
             <BrandLockup size={24} onPress={() => void changeMode('lite')} accessibilityLabel="Switch to Lite view" />
           </View>
           <View style={styles.tabBody}>
-            {view === 'squad' ? <SquadScreen onOpenPlayer={openPlayer} /> : null}
-            {view === 'player' && player ? (
+            {view === 'squad' ? <SquadScreen key={rosterScope} onOpenPlayer={openPlayer} /> : null}
+            {view === 'player' && selectedPlayer ? (
               <PlayerProfileScreen
-                key={player.id}
-                player={player}
+                key={`${rosterScope}|${selectedPlayer.id}`}
+                player={selectedPlayer}
                 onBack={() => setView('squad')}
               />
             ) : null}
-            {view === 'register' ? <AttendanceScreen onOpenSetup={() => setView('training')} /> : null}
-            {view === 'training' ? <SetupScreen onOpenAttendance={() => setView('register')} /> : null}
+            {view === 'register' ? <AttendanceScreen key={rosterScope} onOpenSetup={() => setView('training')} /> : null}
+            {view === 'training' ? <SetupScreen key={rosterScope} onOpenAttendance={() => setView('register')} /> : null}
             {view === 'settings' ? (
               <SettingsScreen
+                key={rosterScope}
                 mode={mode}
                 onModeChange={changeMode}
                 onOpenLite={() => setView('lite')}
-                onSignIn={preview ? () => setShowAuth(true) : undefined}
+                onSignIn={authPreview ? () => setShowAuth(true) : undefined}
                 onOpenSharedProfile={openSharedCode}
               />
             ) : null}
@@ -240,7 +259,9 @@ const Root: React.FC = () => {
 const App: React.FC = () => (
   <AuthProvider>
     <SyncQueueProvider>
-      <Root />
+      <ClubRosterProvider>
+        <Root />
+      </ClubRosterProvider>
     </SyncQueueProvider>
   </AuthProvider>
 );

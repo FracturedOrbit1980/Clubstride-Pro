@@ -12,3 +12,5 @@ await (await import('./outbox-harness.ts')).done;
 await (await import('./attendance-harness.ts')).done;
 await (await import('./drills-harness.ts')).done;
 await (await import('./player-harness.ts')).done;
+await (await import('./lite-roster-harness.ts')).done;
+await (await import('./lite-matches-harness.ts')).done;

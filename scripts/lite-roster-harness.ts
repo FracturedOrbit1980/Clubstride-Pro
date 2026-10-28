@@ -1,0 +1,135 @@
+import assert from 'node:assert/strict';
+import { SyncQueue } from '../src/core/sync/syncQueue';
+import { clubRoster, connectLiteRoster, connectionKey, localMembership, mergeInitialRoster, parseLiteConnection, parseLiteRoster, planLiteSync, rosterSnapshot } from '../src/features/shared/liteRoster';
+
+const waitForQueue = (queue: SyncQueue, condition: () => boolean): Promise<void> => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => { stop(); reject(new Error('Queue did not settle')); }, 1000);
+  const check = () => { if (condition()) { clearTimeout(timer); stop(); resolve(); } };
+  const stop = queue.subscribe(check);
+  check();
+});
+
+const snapshot = { version: 1, installationId: 'device-a', teamId: 'team-a', teamName: 'Local United', revision: '2026-10-28T10:00:00.000Z',
+  players: [{ id: 'p-one', name: 'Sam Local', number: 7, position: 'MID' }, { id: 'p-two', name: 'Alex Local', number: 1, position: 'GK' }] };
+const roster = parseLiteRoster(snapshot);
+const membership = { teamId: 'club-a', teamName: 'Club United', role: 'coach' as const };
+const sam = roster.players.find(row => row.shirt_number === 7)!;
+const alex = roster.players.find(row => row.shirt_number === 1)!;
+
+export const done = (async () => {
+  assert.equal(roster.teamName, 'Local United');
+  assert.deepEqual(roster.players.map(row => row.full_name), ['Alex Local', 'Sam Local']);
+  assert.equal(sam.position_tag, 'Midfielder');
+  assert.equal(alex.position_tag, 'Goalkeeper');
+  assert.deepEqual(parseLiteRoster({ ...snapshot, players: [] }).players, []);
+  assert.equal(parseLiteRoster(snapshot).players[0]?.id, alex.id);
+  assert.notEqual(parseLiteRoster({ ...snapshot, installationId: 'device-b' }).players[0]?.id, alex.id);
+  assert.notEqual(parseLiteRoster({ ...snapshot, teamId: 'team-b' }).players[0]?.id, alex.id);
+  assert.notEqual(localMembership(roster).teamId, localMembership(parseLiteRoster({ ...snapshot, teamId: 'team-b' })).teamId);
+  assert.notEqual(connectionKey('coach-a', roster), connectionKey('parent-b', roster));
+  assert.throws(() => parseLiteRoster(null));
+  assert.throws(() => parseLiteRoster({ ...snapshot, players: [snapshot.players[0], snapshot.players[0]] }));
+  assert.throws(() => parseLiteRoster({ ...snapshot, players: [{ ...snapshot.players[0], number: -1 }] }));
+  const unnumbered = parseLiteRoster({ ...snapshot, players: [{ ...snapshot.players[0], number: 0 }] });
+  assert.equal(unnumbered.players[0]?.shirt_number, 0);
+  assert.throws(() => connectLiteRoster(unnumbered, membership, []), /shirt number/);
+  assert.throws(() => parseLiteRoster({ ...snapshot, players: [{ ...snapshot.players[0], name: ' ' }] }));
+  assert.throws(() => connectLiteRoster(roster, { ...membership, role: 'parent' }, []), /manager or coach/);
+  assert.throws(() => connectLiteRoster(roster, membership, [{ ...sam, id: 'another-child', full_name: 'Another Child' }]), /No players were imported/);
+  const connection = connectLiteRoster(roster, membership, []);
+  const first = planLiteSync(roster, connection);
+  assert.equal(first.inputs.length, 2);
+  assert.equal(first.inputs[0]?.table, 'players');
+  assert.equal(first.inputs[0]?.payload.team_id, 'club-a');
+  assert.equal(first.inputs[0]?.payload.full_name, 'Alex Local');
+  assert.equal(first.inputs[0]?.payload.id, undefined);
+  assert.equal(first.inputs[0]?.payload.created_by, undefined);
+  assert.equal(first.inputs[0]?.payload.deleted_at, undefined);
+  assert.deepEqual(planLiteSync(roster, first.next).inputs, []);
+  assert.deepEqual(parseLiteConnection(first.next, roster), first.next);
+  assert.equal(parseLiteConnection(first.next, parseLiteRoster({ ...snapshot, teamId: 'other' })), null);
+  const changed = parseLiteRoster({ ...snapshot, revision: '2026-10-28T10:01:00.000Z', players: [{ ...snapshot.players[0], name: 'Sam Edited' }] });
+  const edits = planLiteSync(changed, first.next);
+  assert.equal(edits.inputs.length, 2);
+  assert.equal(edits.inputs[0]?.op, 'tombstone');
+  assert.equal(edits.inputs[0]?.rowId, alex.id);
+  assert.equal(edits.inputs[1]?.op, 'upsert');
+  assert.equal(edits.inputs[1]?.rowId, sam.id);
+  assert.equal(edits.inputs[1]?.payload.full_name, 'Sam Edited');
+  assert.equal(planLiteSync(parseLiteRoster({ ...snapshot, players: [] }), first.next).inputs.filter(row => row.op === 'tombstone').length, 2);
+  assert.throws(() => planLiteSync(parseLiteRoster({ ...snapshot, teamId: 'different' }), first.next), /no longer matches/);
+  const duplicated = parseLiteRoster({ ...snapshot, players: snapshot.players.map(row => ({ ...row, number: 7 })) });
+  assert.throws(() => planLiteSync(duplicated, connection), /unique/);
+  const swapped = parseLiteRoster({ ...snapshot, players: snapshot.players.map(row => ({ ...row, number: row.number === 7 ? 1 : 7 })) });
+  assert.throws(() => planLiteSync(swapped, first.next), /cannot be swapped/);
+  const exact = { ...sam, id: '7cc2214c-6525-4093-b91c-e48cc12933a5' };
+  const matched = planLiteSync(roster, connectLiteRoster(roster, membership, [exact]));
+  assert.equal(matched.next.players.find(row => row.full_name === 'Sam Local')?.id, exact.id);
+  assert.equal(matched.next.players.length, 2);
+  assert.equal(matched.inputs.length, 1);
+  const unavailable = planLiteSync(roster, connectLiteRoster(roster, membership, [{ ...exact, available: false }]));
+  assert.equal(unavailable.next.players.find(row => row.id === exact.id)?.available, false);
+  assert.equal(unavailable.inputs.length, 1);
+  const cloudMembership = { ...membership, teamId: 'cf00a741-af7c-444f-8876-b874d784bd3b' };
+  const cloudOnly = { id: 'c7b68512-228c-4d93-9002-eb0f9774ec70', full_name: 'Cloud Player', shirt_number: 18, position_tag: 'Defender', available: true };
+  const initial = connectLiteRoster(roster, cloudMembership, [exact, cloudOnly]);
+  const combined = mergeInitialRoster(roster, initial, [exact, cloudOnly]);
+  assert.equal(combined.length, 3);
+  assert.equal(combined.find(player => player.id === exact.id)?.full_name, 'Sam Local');
+  const shared = clubRoster(roster, initial, cloudMembership, 'coach-a', combined, roster.revision);
+  assert.equal(shared.cloudTeamId, cloudMembership.teamId);
+  assert.equal(shared.liteIds[exact.id], 'p-one');
+  assert.equal(shared.liteIds[cloudOnly.id], cloudOnly.id);
+  assert.equal(shared.players.find(player => player.full_name === 'Sam Local')?.id, exact.id);
+  assert.deepEqual(parseLiteRoster(rosterSnapshot(shared, shared.players, shared.revision)), shared);
+  const sharedConnection = { installationId: shared.installationId, liteTeamId: shared.teamId, teamId: cloudMembership.teamId,
+    revision: shared.revision, idMap: Object.fromEntries(shared.players.map(player => [player.id, player.id])), players: shared.players };
+  assert.deepEqual(planLiteSync(shared, sharedConnection).inputs, []);
+  const liteEdit = rosterSnapshot(shared, shared.players.map(player => player.id === cloudOnly.id ? { ...player, full_name: 'Edited in Lite' } : player), '2026-10-28T11:00:00.000Z');
+  const reverse = planLiteSync(parseLiteRoster(liteEdit), sharedConnection);
+  assert.equal(reverse.inputs.length, 1);
+  assert.equal(reverse.inputs[0]?.rowId, cloudOnly.id);
+  assert.equal(reverse.inputs[0]?.payload.full_name, 'Edited in Lite');
+  const incoming = clubRoster(shared, sharedConnection, cloudMembership, 'coach-a', [{ ...cloudOnly, full_name: 'Edited in Pro' }], '2026-10-28T12:00:00.000Z');
+  assert.equal(incoming.players.length, 1);
+  assert.equal(rosterSnapshot(incoming, incoming.players, incoming.revision).players[0]?.name, 'Edited in Pro');
+  assert.equal(clubRoster(shared, sharedConnection, cloudMembership, 'coach-a', [], shared.revision).players.length, 0);
+  const parent = clubRoster(shared, null, { ...cloudMembership, role: 'parent' }, 'parent-a', [cloudOnly], shared.revision);
+  assert.equal(parent.readOnly, true);
+  assert.equal(parent.players.length, 1);
+  assert.throws(() => parseLiteRoster({ ...snapshot, cloudTeamId: 'not-a-uuid' }));
+  assert.throws(() => parseLiteRoster({ ...snapshot, players: [{ ...snapshot.players[0], proId: 'not-a-uuid' }] }));
+  assert.throws(() => parseLiteRoster({ ...snapshot, players: snapshot.players.map(player => ({ ...player, proId: exact.id })) }));
+  const server = new Map<string, Record<string, unknown>>();
+  const client = { from: (table: string) => ({
+    upsert: async (row: Record<string, unknown>) => {
+      assert.equal(table, 'players');
+      server.set(String(row.id), row);
+      return { error: null };
+    },
+    update: (row: Record<string, unknown>) => ({ eq: async (_column: string, id: string) => {
+      server.set(id, { ...server.get(id), ...row });
+      return { error: null };
+    } }),
+  }) };
+  const queue = new SyncQueue(client as never);
+  queue.attach('lite-roster-test-coach');
+  await waitForQueue(queue, () => queue.getSnapshot().attached && !queue.getSnapshot().flushing);
+  first.inputs.forEach(input => assert.equal(queue.enqueue(input), true));
+  await waitForQueue(queue, () => queue.getSnapshot().pending === 0 && !queue.getSnapshot().flushing);
+  assert.equal(server.size, 2);
+  assert.equal(server.get(sam.id)?.full_name, 'Sam Local');
+  edits.inputs.forEach(input => assert.equal(queue.enqueue(input), true));
+  await waitForQueue(queue, () => queue.getSnapshot().pending === 0 && !queue.getSnapshot().flushing);
+  assert.equal(server.get(sam.id)?.full_name, 'Sam Edited');
+  assert.equal(server.get(alex.id)?.deleted_at, changed.revision);
+  queue.dispose();
+  const denied = new SyncQueue({ from: () => ({ upsert: async () => ({ error: { code: '42501', message: 'RLS denied' } }) }) } as never);
+  denied.attach('lite-roster-denied-account');
+  await waitForQueue(denied, () => denied.getSnapshot().attached && !denied.getSnapshot().flushing);
+  denied.enqueue(first.inputs[0]!);
+  await waitForQueue(denied, () => denied.getSnapshot().blocked === 1 && !denied.getSnapshot().flushing);
+  assert.match(denied.getSnapshot().lastFlushError ?? '', /RLS denied/);
+  denied.dispose();
+  console.log('all shared Lite roster checks passed');
+})();
