@@ -1,8 +1,11 @@
 /**
  * Drills are the coaching side of training: a named exercise the squad runs, with a timer the
  * coach starts on the pitch. The row lives in public.drills, whose `details` column is JSONB,
- * so the minutes and notes travel inside it rather than needing a migration for each field.
+ * so the minutes, the notes and the diagram travel inside it rather than needing a migration for
+ * each field.
  */
+
+import { parseDrillPlan, type DrillPlan } from './drillPlan';
 
 export const DRILL_MINUTES_MIN = 1;
 export const DRILL_MINUTES_MAX = 120;
@@ -19,6 +22,8 @@ export interface Drill {
   focus: string | null;
   minutes: number;
   notes: string | null;
+  /** The diagram, movement and coaching detail. Null for a drill the coach typed from scratch. */
+  plan: DrillPlan | null;
 }
 
 /** The form's state. `id` is null until a new drill is minted a row id. */
@@ -28,6 +33,8 @@ export interface DrillDraft {
   focus: string;
   minutes: number;
   notes: string;
+  /** Carried through the edit unchanged: a coach changing the timer must not lose the diagram. */
+  plan: DrillPlan | null;
 }
 
 /** The shape public.drills holds, and the shape this phone caches. */
@@ -58,7 +65,7 @@ export function parseDrillRow(value: unknown): Drill | null {
   if (!name) return null;
   const details =
     typeof raw.details === 'object' && raw.details !== null
-      ? (raw.details as { minutes?: unknown; notes?: unknown })
+      ? (raw.details as { minutes?: unknown; notes?: unknown; plan?: unknown })
       : {};
   return {
     id: raw.id,
@@ -66,6 +73,7 @@ export function parseDrillRow(value: unknown): Drill | null {
     focus: trimOrNull(raw.focus),
     minutes: clampMinutes(details.minutes),
     notes: trimOrNull(details.notes),
+    plan: parseDrillPlan(details.plan),
   };
 }
 
@@ -122,10 +130,20 @@ export function withoutDrills(drills: readonly Drill[], removed: ReadonlySet<str
   return drills.filter(drill => !removed.has(drill.id));
 }
 
-export const drillDetails = (minutes: number, notes: string | null): Record<string, unknown> => {
+export const drillDetails = (
+  minutes: number,
+  notes: string | null,
+  plan?: DrillPlan | null,
+): Record<string, unknown> => {
   const details: Record<string, unknown> = { minutes: clampMinutes(minutes) };
   const clean = notes === null ? null : notes.trim();
   if (clean) details.notes = clean;
+  // Written back through the parser, so a plan that arrived from the server is stored clean and
+  // never grows: only the fields this app knows about survive a round trip.
+  if (plan) {
+    const parsed = parseDrillPlan(plan);
+    if (parsed) details.plan = parsed;
+  }
   return details;
 };
 
@@ -133,7 +151,7 @@ export const toDrillRow = (drill: Drill): DrillRow => ({
   id: drill.id,
   name: drill.name,
   focus: drill.focus,
-  details: drillDetails(drill.minutes, drill.notes),
+  details: drillDetails(drill.minutes, drill.notes, drill.plan),
 });
 
 /** The queued payload. created_by is server-owned and set by the database, so it is not sent. */
@@ -141,7 +159,7 @@ export const drillPayload = (drill: Drill, teamId: string): Record<string, unkno
   team_id: teamId,
   name: drill.name,
   focus: drill.focus,
-  details: drillDetails(drill.minutes, drill.notes),
+  details: drillDetails(drill.minutes, drill.notes, drill.plan),
 });
 
 export const emptyDrillDraft = (): DrillDraft => ({
@@ -150,6 +168,7 @@ export const emptyDrillDraft = (): DrillDraft => ({
   focus: '',
   minutes: DEFAULT_DRILL_MINUTES,
   notes: '',
+  plan: null,
 });
 
 export const draftFromDrill = (drill: Drill): DrillDraft => ({
@@ -158,6 +177,7 @@ export const draftFromDrill = (drill: Drill): DrillDraft => ({
   focus: drill.focus ?? '',
   minutes: drill.minutes,
   notes: drill.notes ?? '',
+  plan: drill.plan,
 });
 
 /** Returns the sentence to show the coach, or null when the draft can be queued. */
@@ -184,6 +204,7 @@ export function drillFromDraft(draft: DrillDraft, id: string): Drill {
     focus: trimOrNull(draft.focus),
     minutes: clampMinutes(draft.minutes),
     notes: trimOrNull(draft.notes),
+    plan: draft.plan,
   };
 }
 

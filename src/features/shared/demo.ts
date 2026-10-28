@@ -1,8 +1,11 @@
 import type { Membership } from '../../core/context/AuthContext';
-import type { AttendanceRow, AttendanceStatus } from '../coach/attendance/attendance';
+import type { AttendanceMap, AttendanceRow, AttendanceStatus } from '../coach/attendance/attendance';
+import { indexAttendance } from '../coach/attendance/attendance';
 import type { SquadPlayerRow } from '../coach/attendance/squad';
 import { sessionsInWeek, type TrainingSettings } from '../coach/attendance/trainingDays';
+import { addDays, mondayOf, parseIso } from '../coach/attendance/week';
 import type { Drill } from '../coach/drills/drills';
+import { DRILL_LIBRARY } from '../coach/drills/drillLibrary';
 import {
   METRICS,
   type PlayerAssessment,
@@ -69,10 +72,35 @@ export const savePreviewTraining = (next: TrainingSettings): void => {
   previewTraining = next;
 };
 
+/**
+ * The preview squad has three of its own drills, and they carry plans borrowed from the library.
+ * A preview visit has to show what a diagram looks like, not an empty timer screen.
+ */
 export const DEMO_DRILLS: Drill[] = [
-  { id: 'preview-drill-1', name: 'Rondo 4v2', focus: 'Passing', minutes: 15, notes: 'Two touches maximum.' },
-  { id: 'preview-drill-2', name: 'First-touch gates', focus: 'First touch', minutes: 12, notes: null },
-  { id: 'preview-drill-3', name: 'Pressing 3v3', focus: 'Pressing', minutes: 10, notes: 'Trigger on the backward pass.' },
+  {
+    id: 'preview-drill-1',
+    name: 'Rondo 4v2',
+    focus: 'Passing',
+    minutes: 15,
+    notes: 'Two touches maximum.',
+    plan: DRILL_LIBRARY[0]?.plan ?? null,
+  },
+  {
+    id: 'preview-drill-2',
+    name: 'First-touch gates',
+    focus: 'First touch',
+    minutes: 12,
+    notes: null,
+    plan: DRILL_LIBRARY[1]?.plan ?? null,
+  },
+  {
+    id: 'preview-drill-3',
+    name: 'Pressing 3v3',
+    focus: 'Pressing',
+    minutes: 10,
+    notes: 'Trigger on the backward pass.',
+    plan: DRILL_LIBRARY[4]?.plan ?? null,
+  },
 ];
 
 /** Seven present, one late, one excused and one absent: 8 of 10, the 80% the register shows. */
@@ -82,6 +110,17 @@ const DEMO_STATUSES: AttendanceStatus[] = [
   'excused',
   'absent',
 ];
+
+/** Whole days since the epoch: any session turn will do, it only has to differ between sessions. */
+const sessionTurn = (date: string): number => Math.floor(parseIso(date).getTime() / 86_400_000);
+
+/**
+ * Multiplied by three so that, for one session, the ten players still land on ten different
+ * statuses - the week reads the same 80% - while a player's own run shifts from session to
+ * session. Without it every preview player would finish the season on the same rate.
+ */
+const demoStatus = (playerIndex: number, date: string): AttendanceStatus =>
+  DEMO_STATUSES[(playerIndex * 3 + sessionTurn(date)) % DEMO_STATUSES.length] ?? 'present';
 
 /** Only sessions that have already happened get marks, so an open week is not pre-filled. */
 export const demoAttendance = (weekStart: string, today: string): AttendanceRow[] => {
@@ -93,12 +132,23 @@ export const demoAttendance = (weekStart: string, today: string): AttendanceRow[
         id: `preview-attendance-${entry.id}-${date}`,
         player_id: entry.id,
         session_date: date,
-        status: DEMO_STATUSES[index] ?? 'present',
+        status: demoStatus(index, date),
         recorded_at: `${date}T16:00:00.000Z`,
       });
     });
   }
   return rows;
+};
+
+/**
+ * The preview season a report reads. The register only ever holds one week, and a report needs a
+ * run of sessions behind its rate, so the marks are walked back week by week from today.
+ */
+export const demoAttendanceSeason = (today: string, weeks = 8): AttendanceMap => {
+  const thisWeek = mondayOf(today);
+  const rows: AttendanceRow[] = [];
+  for (let back = weeks - 1; back >= 0; back -= 1) rows.push(...demoAttendance(addDays(thisWeek, -7 * back), today));
+  return indexAttendance(rows);
 };
 
 const DEMO_NOTES = [
@@ -127,6 +177,25 @@ export const demoAssessment = (playerId: string): PlayerAssessment => {
     coachNotes: DEMO_NOTES[index % DEMO_NOTES.length] ?? null,
     recordedAt: '2026-10-20T17:00:00.000Z',
   };
+};
+
+/**
+ * Preview ratings and notes. A signed-out coach has no account to save to, but a note typed on
+ * the way to training still has to be there when the profile is opened again - and on the page
+ * the share code opens - so the edits are held for the visit. Same deal as the preview days.
+ */
+const previewAssessments = new Map<string, PlayerAssessment>();
+
+export const previewAssessment = (playerId: string): PlayerAssessment => {
+  const saved = previewAssessments.get(playerId);
+  if (saved) return saved;
+  const seeded = demoAssessment(playerId);
+  previewAssessments.set(playerId, seeded);
+  return seeded;
+};
+
+export const savePreviewAssessment = (assessment: PlayerAssessment): void => {
+  previewAssessments.set(assessment.playerId, assessment);
 };
 
 /**

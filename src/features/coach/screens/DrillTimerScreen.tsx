@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { ci } from '../../shared/ci';
+import { DrillPlanCard } from '../drills/DrillPlanCard';
 import {
   drillSeconds,
   extendRemaining,
@@ -128,6 +129,15 @@ export const DrillTimerScreen: React.FC<{ drill: Drill; onBack: () => void }> = 
         </View>
       </View>
 
+      {drill.plan ? <DrillPlanCard plan={drill.plan} /> : null}
+
+      {!drill.plan && !drill.notes ? (
+        <Text style={styles.empty}>
+          This drill has no diagram yet. The coaching library below the list has ten, each with a
+          picture and the movement playing.
+        </Text>
+      ) : null}
+
       {drill.notes ? (
         <View style={styles.card}>
           <Text style={styles.label}>How to run it</Text>
@@ -170,4 +180,5 @@ const styles = {
   card: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 6 },
   label: { color: ci.color.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
   notes: { color: ci.color.muted, fontSize: 14, lineHeight: 20 },
+  empty: { color: ci.color.disabledText, fontSize: 13, lineHeight: 19 },
 } as const;

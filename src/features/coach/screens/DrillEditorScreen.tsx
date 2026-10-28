@@ -35,7 +35,9 @@ export const DrillEditorScreen: React.FC<{
   };
 
   const save = async (): Promise<void> => {
-    const candidate: DrillDraft = { id: draft.id, name, focus, minutes: Number(minutesText), notes };
+    // The plan is carried through untouched: the form edits the name, the timer and the notes, and
+    // a coach changing the minutes must not lose the diagram that came with the drill.
+    const candidate: DrillDraft = { id: draft.id, name, focus, minutes: Number(minutesText), notes, plan: draft.plan };
     const problem = validateDrillDraft(candidate);
     if (problem) {
       setError(problem);
@@ -144,6 +146,12 @@ export const DrillEditorScreen: React.FC<{
           editable={!busy}
           style={styles.notesInput}
         />
+
+        {draft.plan ? (
+          <Text style={styles.hint}>
+            This one keeps its diagram and its steps: open it from the list to see the movement.
+          </Text>
+        ) : null}
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 

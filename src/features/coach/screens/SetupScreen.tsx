@@ -8,6 +8,7 @@ import { ci } from '../../shared/ci';
 import { DEMO_DRILLS, DEMO_USER_ID } from '../../shared/demo';
 import { useClubRoster } from '../../shared/ClubRosterProvider';
 import { TrainingDaysCard } from '../components/TrainingDaysCard';
+import { DRILL_LIBRARY } from '../drills/drillLibrary';
 import {
   draftFromDrill,
   drillFromDraft,
@@ -212,6 +213,10 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
     return null;
   };
 
+  // Names, not ids: a copied library drill gets a fresh row id of its own, so the only thing that
+  // can tell a coach they already run this one is its name.
+  const squadNames = new Set(drills.map(drill => drill.name.trim().toLowerCase()));
+
   if (pane.kind === 'run') {
     return <DrillTimerScreen drill={pane.drill} onBack={() => setPane({ kind: 'list' })} />;
   }
@@ -301,6 +306,49 @@ export const SetupScreen: React.FC<{ onOpenAttendance: () => void }> = ({ onOpen
           {!canEdit ? (
             <Text style={styles.readOnly}>Only a coach or manager can add or edit drills.</Text>
           ) : null}
+        </View>
+      ) : null}
+
+      {membership ? (
+        <View style={styles.card}>
+          <Text style={styles.label}>Coaching library</Text>
+          <Text style={styles.meta}>
+            Ten drills every coach runs, each with a diagram, the movement playing and what to
+            watch for. Open one on the pitch, or copy it into this squad.
+          </Text>
+          {DRILL_LIBRARY.map(drill => {
+            const copied = squadNames.has(drill.name.trim().toLowerCase());
+            return (
+              <View key={drill.id} style={styles.drillRow}>
+                <View style={styles.drillText}>
+                  <Text style={styles.drillName}>{drill.name}</Text>
+                  <Text style={styles.meta}>{summarizeDrill(drill)}</Text>
+                </View>
+                <Pressable
+                  style={styles.drillRun}
+                  onPress={() => setPane({ kind: 'run', drill })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${drill.name} with its diagram`}
+                >
+                  <Text style={styles.drillRunLabel}>Open</Text>
+                </Pressable>
+                {canEdit ? (
+                  <Pressable
+                    style={styles.drillEdit}
+                    onPress={() => setPane({ kind: 'edit', draft: { ...draftFromDrill(drill), id: null } })}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      copied
+                        ? `Copy ${drill.name} into this squad again`
+                        : `Copy ${drill.name} into this squad`
+                    }
+                  >
+                    <Text style={styles.drillEditLabel}>{copied ? 'Copy again' : 'Copy'}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            );
+          })}
         </View>
       ) : null}
 
