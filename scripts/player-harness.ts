@@ -47,6 +47,12 @@ import {
 } from '../src/features/coach/player/radar';
 import { assertQueuedPayload } from '../src/core/sync/contracts';
 import {
+  attendanceRate,
+  countStatuses,
+  indexAttendance,
+  summariseAttendance,
+} from '../src/features/coach/attendance/attendance';
+import {
   SHARE_CODE_LENGTH,
   SHARE_CODE_PATTERN,
   generateShareCode,
@@ -61,9 +67,13 @@ import {
   DEMO_PLAYERS,
   DEMO_SHARE_CODE,
   demoAssessment,
+  demoAttendance,
+  demoAttendanceSeason,
   demoMatchLog,
+  previewAssessment,
   previewSharedPlayer,
   previewShareCode,
+  savePreviewAssessment,
 } from '../src/features/shared/demo';
 import {
   buildPlayerReportPdf,
@@ -314,6 +324,41 @@ async function main(): Promise<void> {
     JSON.stringify(demoAssessment('preview-player-1').scores) !== JSON.stringify(demoAssessment('preview-player-2').scores),
   );
 
+  // A signed-out coach has no account to save to, but the note they typed must still be there
+  // when the profile is opened again, and must not leak into another player's page.
+  const third = previewAssessment('preview-player-3');
+  assert('the preview profile opens on the seeded note', third.coachNotes === demoAssessment('preview-player-3').coachNotes, third);
+  savePreviewAssessment({ ...third, coachNotes: 'Typed on the way to training.', recordedAt: '2026-10-28T08:00:00.000Z' });
+  assert(
+    'a saved preview note comes back for editing',
+    previewAssessment('preview-player-3').coachNotes === 'Typed on the way to training.',
+    previewAssessment('preview-player-3'),
+  );
+  assert(
+    'one player edit does not follow another player',
+    previewAssessment('preview-player-4').coachNotes === demoAssessment('preview-player-4').coachNotes,
+  );
+
+  const weekMarks = indexAttendance(demoAttendance('2026-10-26', '2026-10-28'));
+  const weekCounts = countStatuses(DEMO_PLAYERS.map(entry => entry.id), weekMarks, '2026-10-26');
+  assert(
+    'a preview session still marks seven present, one late, one excused and one absent',
+    weekCounts.present === 7 &&
+      weekCounts.late === 1 &&
+      weekCounts.excused === 1 &&
+      weekCounts.absent === 1 &&
+      attendanceRate(weekCounts) === 80,
+    weekCounts,
+  );
+  const previewSeason = demoAttendanceSeason('2026-10-28');
+  const previewSeasonRecord = summariseAttendance('preview-player-1', previewSeason);
+  assert('the preview season reaches back past one week', previewSeasonRecord.sessions > 10, previewSeasonRecord);
+  assert(
+    'each preview player has their own season rate',
+    new Set(DEMO_PLAYERS.map(entry => summariseAttendance(entry.id, previewSeason).rate)).size > 1,
+    DEMO_PLAYERS.map(entry => summariseAttendance(entry.id, previewSeason).rate),
+  );
+
   const demoLog = demoMatchLog('preview-player-1');
   const demoSummary = summariseMinutes(demoLog);
   assert(
@@ -439,6 +484,22 @@ async function main(): Promise<void> {
   // PDF library in the toolchain.
   const player = DEMO_PLAYERS[0];
   const demo = demoAssessment(player.id);
+  const seasonStatuses = [
+    'present', 'present', 'present', 'present', 'present',
+    'present', 'present', 'late', 'excused', 'absent',
+  ] as const;
+  const season = summariseAttendance(
+    player.id,
+    indexAttendance(
+      seasonStatuses.map((status, index) => ({
+        id: `report-mark-${index}`,
+        player_id: player.id,
+        session_date: `2026-10-${String(5 + index).padStart(2, '0')}`,
+        status,
+        recorded_at: `2026-10-${String(5 + index).padStart(2, '0')}T16:00:00.000Z`,
+      })),
+    ),
+  );
   const reportInput: PlayerReportInput = {
     teamName: 'Clubstride FC',
     playerName: player.full_name,
@@ -447,6 +508,7 @@ async function main(): Promise<void> {
     scores: demo.scores,
     coachNotes: demo.coachNotes,
     minutes: summariseMinutes(demoMatchLog(player.id)),
+    attendance: season,
     shareCode: DEMO_SHARE_CODE,
     generatedAt: new Date(2026, 9, 27, 9, 30),
   };
@@ -476,6 +538,15 @@ async function main(): Promise<void> {
       report.includes('Rating profile') &&
       report.includes('Coach note') &&
       report.includes('88%'),
+  );
+  assert(
+    'the page carries the attendance run beside the game time',
+    report.includes('ATTENDED') &&
+      report.includes('ATTENDANCE') &&
+      report.includes('(8/10) Tj') &&
+      report.includes('(80%) Tj') &&
+      report.includes('(EXCUSED) Tj'),
+    season,
   );
   assert(
     'the radar is drawn as a filled and stroked polygon',
@@ -511,6 +582,12 @@ async function main(): Promise<void> {
       pdfText(buildPlayerReportPdf({ ...reportInput, shareCode: null })).includes(
         'No share code has been issued for this player yet.',
       ),
+  );
+  assert(
+    'a season nobody marked says so instead of printing zeros',
+    pdfText(buildPlayerReportPdf({ ...reportInput, attendance: summariseAttendance('nobody', {}) })).includes(
+      'No attendance marked yet.',
+    ),
   );
   const trickyReport = pdfText(
     buildPlayerReportPdf({ ...reportInput, playerName: 'Zoë (Test)', coachNotes: 'Marks: 4/5 (left)' }),

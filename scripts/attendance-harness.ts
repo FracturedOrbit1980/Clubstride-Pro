@@ -16,6 +16,7 @@ import {
   indexAttendance,
   mergeAttendance,
   parseAttendanceRows,
+  summariseAttendance,
   withAttendance,
   type AttendanceMap,
   type AttendanceRow,
@@ -143,6 +144,25 @@ async function main(): Promise<void> {
   assert('attendance rate treats late as attending and ignores unmarked players', attendanceRate(counts) === 67, attendanceRate(counts));
   assert('the summary names only statuses that occurred', describeCounts(counts) === '1 present · 1 late · 1 absent · 1 unmarked', describeCounts(counts));
   assert('nothing marked has no rate yet', attendanceRate(countStatuses(['p1'], {}, '2026-10-19')) === null);
+
+  const season = indexAttendance([
+    ...serverRows,
+    { id: 's1', player_id: 'p1', session_date: '2026-10-21', status: 'late', recorded_at: '2026-10-21T16:00:00.000Z' },
+    { id: 's2', player_id: 'p1', session_date: '2026-10-23', status: 'absent', recorded_at: '2026-10-23T16:00:00.000Z' },
+    { id: 's3', player_id: 'p1', session_date: '2026-10-26', status: 'excused', recorded_at: '2026-10-26T16:00:00.000Z' },
+    { id: 's4', player_id: 'p2', session_date: '2026-10-21', status: 'present', recorded_at: '2026-10-21T16:00:00.000Z' },
+  ]);
+  const p1Season = summariseAttendance('p1', season);
+  assert(
+    'one player reads only their own sessions, across every week',
+    p1Season.sessions === 4 && p1Season.present === 1 && p1Season.late === 1 &&
+      p1Season.absent === 1 && p1Season.excused === 1,
+    p1Season,
+  );
+  assert('a season treats late as attending', p1Season.attended === 2 && p1Season.rate === 50, p1Season);
+  assert('the other players do not enter the count', summariseAttendance('p2', season).rate === 100);
+  const unmarked = summariseAttendance('p9', season);
+  assert('a player nobody marked has no rate', unmarked.sessions === 0 && unmarked.attended === 0 && unmarked.rate === null, unmarked);
 
   // --- 5. squad rows and the team_settings outbox contract -------------------------------
 

@@ -12,6 +12,9 @@ secrets/
 *.apk
 dist/
 
+# Scratch output from `node scripts/dump-report.mjs`, which writes the sample PDFs for a look.
+tmp/
+
 # `expo prebuild` output. The managed config in app.json is the source of truth, so a generated
 # native folder that gets committed will drift from it - and from blockedPermissions.
 android/

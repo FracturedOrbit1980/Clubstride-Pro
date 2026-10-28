@@ -13,8 +13,15 @@ import { useAuth } from '../../../core/context/AuthContext';
 import { useSyncQueue } from '../../../core/sync';
 import { supabase } from '../../../core/supabaseClient';
 import { cacheKey, readCache, writeCache } from '../attendance/cache';
+import {
+  indexAttendance,
+  mergeAttendance,
+  parseAttendanceRows,
+  summariseAttendance,
+  type AttendanceSummary,
+} from '../attendance/attendance';
 import type { SquadPlayerRow } from '../attendance/squad';
-import { formatDay } from '../attendance/week';
+import { formatDay, sessionToday } from '../attendance/week';
 import {
   CATEGORIES,
   METRICS_BY_CATEGORY,
@@ -53,7 +60,7 @@ import {
   shareProfileMessage,
   shareProfileWebLink,
 } from '../player/shareCode';
-import { demoAssessment, demoMatchLog, previewShareCode } from '../../shared/demo';
+import { demoAttendanceSeason, demoMatchLog, previewAssessment, previewShareCode, savePreviewAssessment } from '../../shared/demo';
 import { useClubRoster } from '../../shared/ClubRosterProvider';
 import { ci } from '../../shared/ci';
 import { savePdf } from '../../shared/pdfExport';
@@ -64,6 +71,41 @@ const fillWidth = (value: number | null): `${number}%` =>
   `${Math.round(((value ?? 0) / RATING_MAX) * 100)}%`;
 
 const latestMatches = 6;
+
+/**
+ * Attendance for the report: what this phone holds first, then the club's copy, newest mark per
+ * session winning. Read when a report is asked for rather than on load, so opening a profile
+ * does not pull a whole season, and never written back - the register owns that cache.
+ */
+const attendanceForReport = async (
+  playerId: string,
+  ownerId: string,
+  teamId: string,
+  fromClub: boolean,
+): Promise<{ summary: AttendanceSummary; warning: string | null }> => {
+  const read = await readCache(cacheKey('attendance', ownerId, teamId));
+  const cached = parseAttendanceRows(read.raw);
+  let map = indexAttendance(cached.rows);
+  const notes: string[] = [];
+  if (read.warning) notes.push(read.warning);
+  if (cached.dropped > 0) notes.push(`${cached.dropped} saved attendance row(s) could not be read.`);
+  if (!fromClub) return { summary: summariseAttendance(playerId, map), warning: notes.join(' ') || null };
+
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('id, player_id, session_date, status, recorded_at')
+    .eq('team_id', teamId)
+    .eq('session_type', 'practice')
+    .is('deleted_at', null);
+  if (error) {
+    notes.push(`Attendance: showing the marks saved on this phone. The club copy could not be read: ${error.message}`);
+  } else {
+    const club = parseAttendanceRows(data);
+    map = mergeAttendance(map, club.rows);
+    if (club.dropped > 0) notes.push(`${club.dropped} club attendance row(s) came back unreadable.`);
+  }
+  return { summary: summariseAttendance(playerId, map), warning: notes.join(' ') || null };
+};
 
 /**
  * One player's report: game time summed from completed matches, the 17 ratings behind a
@@ -155,7 +197,9 @@ export const PlayerProfileScreen: React.FC<{
       return () => { active = false; };
     }
     if (preview) {
-      applyAssessment(local ? null : demoAssessment(player.id));
+      // Guarded like every other branch: a refresh while the coach is typing must not undo the
+      // note they are writing.
+      if (!dirtyRef.current) applyAssessment(local ? null : previewAssessment(player.id));
       entriesRef.current = local ? [] : demoMatchLog(player.id);
       setEntries(entriesRef.current);
       setShareCode(local ? null : previewShareCode(player.id));
@@ -378,8 +422,9 @@ export const PlayerProfileScreen: React.FC<{
       return;
     }
     if (preview) {
+      savePreviewAssessment(next);
       applyAssessment(next);
-      setSaveNotice('Preview: saved on this screen only.');
+      setSaveNotice('Preview: kept for this visit, and gone when the app closes.');
       return;
     }
     if (!teamId || !userId || !localAssessmentKey) {
@@ -478,6 +523,15 @@ export const PlayerProfileScreen: React.FC<{
     setExporting(true);
     try {
       const generatedAt = new Date();
+      let attendance = summariseAttendance(player.id, {});
+      let attendanceNote: string | null = null;
+      if (preview && !localAssessmentKey) {
+        attendance = summariseAttendance(player.id, demoAttendanceSeason(sessionToday()));
+      } else if (teamId && assessmentUserId) {
+        const loaded = await attendanceForReport(player.id, assessmentUserId, teamId, !preview);
+        attendance = loaded.summary;
+        attendanceNote = loaded.warning;
+      }
       const bytes = buildPlayerReportPdf({
         teamName: membership?.teamName ?? 'Clubstride Pro',
         playerName: player.full_name,
@@ -486,10 +540,12 @@ export const PlayerProfileScreen: React.FC<{
         scores,
         coachNotes: notes.trim() || null,
         minutes: summary,
+        attendance,
         shareCode: !installationId && shareCode && !shareRevoked ? shareCode : null,
         generatedAt,
       });
       await savePdf(bytes, playerReportFileName(player.full_name, generatedAt), 'Player report');
+      if (attendanceNote) setExportError(attendanceNote);
     } catch (error) {
       setExportError(`Could not create the PDF: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
@@ -535,7 +591,7 @@ export const PlayerProfileScreen: React.FC<{
             <Text style={styles.exportLabel}>{exporting ? 'Preparing report...' : 'Export report PDF'}</Text>
           </Pressable>
           <Text style={styles.exportHint}>
-            {installationId ? 'One page with device ratings and notes. Online sharing requires an authorized matching club team.' : 'One page with the ratings, game time and share code - send it to the family.'}
+            {installationId ? 'One page with device ratings and notes. Online sharing requires an authorized matching club team.' : 'One page with the ratings, attendance, game time and share code - send it to the family.'}
           </Text>
           {exportError ? <Text style={styles.error}>{exportError}</Text> : null}
         </View>
@@ -680,7 +736,11 @@ export const PlayerProfileScreen: React.FC<{
                     : savedAt
                       ? `Saved ${formatDay(savedAt.slice(0, 10))}.`
                       : 'Not saved yet.'}{' '}
-                  {installationId ? 'Saved on this device only.' : 'Saves on this phone first, then syncs.'}
+                  {preview && !installationId
+                    ? 'Preview keeps it for this visit only.'
+                    : installationId
+                      ? 'Saved on this device only.'
+                      : 'Saves on this phone first, then syncs.'}
                 </Text>
                 {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
                 {saveNotice ? <Text style={styles.notice}>{saveNotice}</Text> : null}

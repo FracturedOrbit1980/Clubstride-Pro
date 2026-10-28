@@ -12,6 +12,7 @@ import {
 import { formatMinutes, formatPercentage, type MatchMinutesSummary } from './minutes';
 import { radarAngle } from './radar';
 import { shareProfileWebLink } from './shareCode';
+import type { AttendanceSummary } from '../attendance/attendance';
 import {
   assemble,
   fillCircle,
@@ -30,9 +31,10 @@ import {
 
 /**
  * One player's report as a PDF, drawn with the register's writer so a coach can send the whole
- * thing to a family from match day: game time, the four-axis radar, every rating, the note and
- * the code that opens the online copy. Everything is one page; a long note is truncated rather
- * than spilling, because a second page would carry the share code away from the ratings.
+ * thing to a family from match day: game time, attendance, the four-axis radar, every rating,
+ * the note and the code that opens the online copy. Everything is one page; a long note is
+ * truncated rather than spilling, because a second page would carry the share code away from
+ * the ratings.
  */
 
 const MARGIN = 34;
@@ -51,8 +53,10 @@ const RADAR_FILL = '#E3F2EA';
 const COLUMN_GAP = 20;
 const COLUMN_WIDTH = (CONTENT_WIDTH - COLUMN_GAP) / 2;
 const RIGHT_COLUMN_X = MARGIN + COLUMN_WIDTH + COLUMN_GAP;
-const METRIC_ROW = 20;
-const GROUP_HEADER = 22;
+const BAND_ROW = 36;
+const METRIC_ROW = 17;
+const GROUP_HEADER = 21;
+const CATEGORY_ROW = 24;
 const NOTE_MAX_LINES = 7;
 const NOTE_MAX_CHARS = 700;
 const NOTE_CLIPPED = '... (full note in the app)';
@@ -76,6 +80,7 @@ export interface PlayerReportInput {
   scores: Scores;
   coachNotes: string | null;
   minutes: MatchMinutesSummary;
+  attendance: AttendanceSummary;
   shareCode: string | null;
   generatedAt?: Date;
 }
@@ -113,23 +118,45 @@ const drawHeader = (
   text(ops, 'F1', 7, boxX + 10, centreY - 14, 'OVERALL', MUTED);
 };
 
+const drawBand = (ops: string[], top: number, cells: readonly (readonly [string, string])[], size: number): void => {
+  const gap = cells.length > 4 ? 6 : 8;
+  const width = (CONTENT_WIDTH - gap * (cells.length - 1)) / cells.length;
+  cells.forEach(([value, label], index) => {
+    const x = MARGIN + index * (width + gap);
+    fillRect(ops, x, top - BAND_ROW, width, BAND_ROW, FILL);
+    strokeRect(ops, x, top - BAND_ROW, width, BAND_ROW, FRAME);
+    text(ops, 'F2', size, x + 9, top - 15, value, INK);
+    text(ops, 'F1', 6.5, x + 9, top - 27, label, MUTED);
+  });
+};
+
 const drawFacts = (ops: string[], top: number, input: PlayerReportInput): void => {
-  const gap = 8;
-  const width = (CONTENT_WIDTH - gap * 3) / 4;
   const minutes = input.minutes;
-  const facts: Array<[string, string]> = [
+  drawBand(ops, top, [
     [formatPercentage(minutes.percentage), 'GAME TIME'],
     [formatMinutes(minutes.playedSeconds), 'MINUTES PLAYED'],
     [formatMinutes(minutes.totalSeconds), 'MATCH MINUTES'],
     [`${minutes.matchesPlayed}/${minutes.matches}`, 'MATCHES PLAYED'],
-  ];
-  facts.forEach(([value, label], index) => {
-    const x = MARGIN + index * (width + gap);
-    fillRect(ops, x, top - 40, width, 40, FILL);
-    strokeRect(ops, x, top - 40, width, 40, FRAME);
-    text(ops, 'F2', 15, x + 9, top - 17, value, INK);
-    text(ops, 'F1', 7, x + 9, top - 30, label, MUTED);
-  });
+  ], 15);
+};
+
+/** Present and late count as attended, so the band and the register's rate never disagree. */
+const drawAttendance = (ops: string[], top: number, attendance: AttendanceSummary): void => {
+  if (attendance.sessions === 0) {
+    fillRect(ops, MARGIN, top - BAND_ROW, CONTENT_WIDTH, BAND_ROW, FILL);
+    strokeRect(ops, MARGIN, top - BAND_ROW, CONTENT_WIDTH, BAND_ROW, FRAME);
+    text(ops, 'F1', 9, MARGIN + 12, top - 21, 'No attendance marked yet.', MUTED);
+    return;
+  }
+  const dash = (value: number | null): string => (value === null ? '-' : `${value}%`);
+  drawBand(ops, top, [
+    [`${attendance.attended}/${attendance.sessions}`, 'ATTENDED'],
+    [dash(attendance.rate), 'ATTENDANCE'],
+    [String(attendance.present), 'PRESENT'],
+    [String(attendance.late), 'LATE'],
+    [String(attendance.absent), 'ABSENT'],
+    [String(attendance.excused), 'EXCUSED'],
+  ], 13);
 };
 
 const radarPoints = (
@@ -149,8 +176,8 @@ const radarPoints = (
 const textWidth = (value: string, size: number): number => value.length * size * 0.52;
 
 const drawRadar = (ops: string[], top: number, values: readonly (number | null)[]): void => {
-  const centre: Point = { x: MARGIN + 118, y: top - 92 };
-  const radius = 66;
+  const centre: Point = { x: MARGIN + 118, y: top - 100 };
+  const radius = 58;
   const labels = CATEGORIES.map(category => category.label);
   const ring = (fraction: number): Point[] =>
     labels.map((_, index) => {
@@ -187,7 +214,7 @@ const drawCategoryValues = (ops: string[], top: number, averages: Record<Categor
   const x = RIGHT_COLUMN_X;
   const width = COLUMN_WIDTH;
   CATEGORIES.forEach((category, index) => {
-    const y = top - 10 - index * 26;
+    const y = top - 10 - index * CATEGORY_ROW;
     fillRect(ops, x, y - 6, width, 22, index % 2 === 0 ? FILL : '#FFFFFF');
     text(ops, 'F1', 9.5, x + 8, y + 3, category.label, MUTED);
     text(ops, 'F2', 10, x + width - 30, y + 3, ratingText(averages[category.key]), INK);
@@ -282,11 +309,12 @@ export function buildPlayerReportPdf(input: PlayerReportInput): Uint8Array<Array
 
   drawHeader(ops, input, generatedAt, overall);
   drawFacts(ops, PAGE_HEIGHT - MARGIN - 110, input);
-  text(ops, 'F2', 13, MARGIN, PAGE_HEIGHT - MARGIN - 176, 'Rating profile', INK);
-  drawRadar(ops, PAGE_HEIGHT - MARGIN - 184, CATEGORIES.map(category => averages[category.key]));
-  drawCategoryValues(ops, PAGE_HEIGHT - MARGIN - 174, averages);
-  drawRatings(ops, PAGE_HEIGHT - MARGIN - 360, input.scores);
-  drawNote(ops, PAGE_HEIGHT - MARGIN - 618, input.coachNotes);
+  drawAttendance(ops, PAGE_HEIGHT - MARGIN - 152, input.attendance);
+  text(ops, 'F2', 13, MARGIN, PAGE_HEIGHT - MARGIN - 212, 'Rating profile', INK);
+  drawRadar(ops, PAGE_HEIGHT - MARGIN - 204, CATEGORIES.map(category => averages[category.key]));
+  drawCategoryValues(ops, PAGE_HEIGHT - MARGIN - 204, averages);
+  drawRatings(ops, PAGE_HEIGHT - MARGIN - 388, input.scores);
+  drawNote(ops, PAGE_HEIGHT - MARGIN - 622, input.coachNotes);
   drawShare(ops, PAGE_HEIGHT - MARGIN - 712, input);
   drawFooter(ops, input);
 

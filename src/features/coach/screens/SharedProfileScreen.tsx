@@ -8,7 +8,7 @@ import { formatDay } from '../attendance/week';
 import { RadarChart } from '../player/RadarChart';
 import { parseSharedProfile, type SharedProfile } from '../player/sharedProfile';
 import { isShareCode, normaliseShareCode } from '../player/shareCode';
-import { DEMO_MEMBERSHIP, demoAssessment, demoMatchLog, previewSharedPlayer } from '../../shared/demo';
+import { DEMO_MEMBERSHIP, demoMatchLog, previewAssessment, previewSharedPlayer } from '../../shared/demo';
 import { BrandLockup } from '../../shared/components/BrandLockup';
 import { ci } from '../../shared/ci';
 
@@ -22,7 +22,9 @@ const fillWidth = (value: number | null): `${number}%` =>
 const demoProfile = (code: string): SharedProfile | null => {
   const player = previewSharedPlayer(code);
   if (!player) return null;
-  const assessment = demoAssessment(player.id);
+  // The saved preview assessment, not the seed: a note typed on the profile is what this page
+  // has to show, the same way the club's copy reaches a real share code.
+  const assessment = previewAssessment(player.id);
   const entries = demoMatchLog(player.id);
   return {
     player: {

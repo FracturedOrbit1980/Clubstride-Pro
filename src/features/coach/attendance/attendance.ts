@@ -137,3 +137,29 @@ export function describeCounts(counts: StatusCounts): string {
   if (counts.unmarked > 0) parts.push(`${counts.unmarked} unmarked`);
   return parts.join(' · ');
 }
+
+/** One player across every session that has been marked for them, whatever the week. */
+export interface AttendanceSummary {
+  present: number;
+  late: number;
+  absent: number;
+  excused: number;
+  /** Sessions with a mark: the denominator of `rate`, and the number beside the attended count. */
+  sessions: number;
+  /** Present plus late, the same definition of "attended" the register's rate uses. */
+  attended: number;
+  rate: number | null;
+}
+
+export function summariseAttendance(playerId: string, map: AttendanceMap): AttendanceSummary {
+  const summary: AttendanceSummary = { present: 0, late: 0, absent: 0, excused: 0, sessions: 0, attended: 0, rate: null };
+  for (const row of Object.values(map)) {
+    if (row.player_id !== playerId) continue;
+    summary[row.status] += 1;
+    summary.sessions += 1;
+  }
+  if (summary.sessions === 0) return summary;
+  summary.attended = summary.present + summary.late;
+  summary.rate = Math.round((summary.attended / summary.sessions) * 100);
+  return summary;
+}
