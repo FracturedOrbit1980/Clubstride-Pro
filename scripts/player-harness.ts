@@ -4,6 +4,7 @@ import {
   CATEGORIES,
   METRICS,
   METRICS_BY_CATEGORY,
+  RATING_BANDS,
   RATING_OPTIONS,
   categoryAverage,
   categoryAverages,
@@ -11,6 +12,7 @@ import {
   normaliseRating,
   overallAverage,
   parseScores,
+  ratingBand,
   ratingText,
   scoredCount,
   serialiseScores,
@@ -41,8 +43,8 @@ import {
 import {
   pointsAttribute,
   radarAngle,
+  radarGeometry,
   radarPoint,
-  radarPoints,
   ratingFraction,
 } from '../src/features/coach/player/radar';
 import { assertQueuedPayload } from '../src/core/sync/contracts';
@@ -396,11 +398,17 @@ async function main(): Promise<void> {
   );
   assert('a rating of 3 draws at 60 percent of the ring', ratingFraction(3) === 0.6);
   assert('a rating of 5 reaches the ring', ratingFraction(5) === 1);
-  assert('nothing scored sits at the centre', ratingFraction(null) === 0);
+  assert('nothing scored has no fraction at all', ratingFraction(null) === null);
   assert('an off-scale rating is clamped', ratingFraction(7) === 1 && ratingFraction(-2) === 0);
-  const plotted = radarPoints([3, null, 5, 1], 100, centre);
-  assert('an unscored axis plots at the centre', Math.round(plotted[1]!.x) === 100 && Math.round(plotted[1]!.y) === 100);
+  const shape = radarGeometry([3, null, 5, 1], 100, centre);
+  assert('a scored axis lands on its own spoke', Math.round(shape.points[0]!.x) === 100 && Math.round(shape.points[0]!.y) === 40);
+  assert('an unscored axis draws no point', shape.points[1] === null);
+  assert('the renderer is told which axis is open', shape.unrated.join(',') === '1');
   assert('the polygon attribute rounds to one decimal', pointsAttribute([{ x: 1.04, y: 2.06 }]) === '1,2.1');
+  assert('the rubric names every whole step', RATING_BANDS.length === 5 && RATING_BANDS.every((band, index) => band.value === index + 1 && band.label.length > 0 && band.meaning.length > 0));
+  assert('a half step takes the band above it', ratingBand(3.5)?.label === 'Strong');
+  assert('a rating of 1 is the bottom band, not nothing', ratingBand(1)?.label === 'Needs work');
+  assert('no rating has no band', ratingBand(null) === null);
 
   const sample = {
     id: 'ignored',
@@ -551,6 +559,19 @@ async function main(): Promise<void> {
   assert(
     'the radar is drawn as a filled and stroked polygon',
     report.includes(' h f') && report.includes(' h S') && report.includes(' c f'),
+  );
+
+  const unratedCategories: readonly string[] = ['physical', 'mental'];
+  const partialScores = Object.fromEntries(
+    Object.entries(demo.scores).filter(([key]) => {
+      const metric = METRICS.find(entry => entry.key === key);
+      return metric !== undefined && !unratedCategories.includes(metric.category);
+    }),
+  ) as Scores;
+  const partial = pdfText(buildPlayerReportPdf({ ...reportInput, scores: partialScores }));
+  assert(
+    'a report with an unrated category leaves the radar open instead of closing it',
+    !partial.includes(' h f') && partial.includes('is left open'),
   );
   assert(
     'the share code and web link travel with the report',

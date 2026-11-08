@@ -2,19 +2,50 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { ci } from '../ci';
 
-export type ProTab = 'squad' | 'register' | 'training' | 'settings';
+export type ProTab = 'squad' | 'register' | 'training' | 'club' | 'family' | 'settings';
 
-const TABS: { key: ProTab; label: string }[] = [
+export interface TabOption {
+  key: ProTab;
+  label: string;
+}
+
+/** The Lite dock, in the order a coach walks through a week: squad, register, training. */
+export const COACH_TABS: readonly TabOption[] = [
   { key: 'squad', label: 'Squad' },
   { key: 'register', label: 'Register' },
   { key: 'training', label: 'Training' },
   { key: 'settings', label: 'Settings' },
 ];
 
-/** The Lite dock, in the order a coach walks through a week: squad, register, training. */
-export const TabBar: React.FC<{ active: ProTab; onChange: (tab: ProTab) => void }> = ({ active, onChange }) => (
+/**
+ * A manager coaches too, so the Club page joins the coach dock instead of replacing it. It is the
+ * only place a squad's family links and seats are readable, and it writes nothing.
+ */
+export const MANAGER_TABS: readonly TabOption[] = [
+  { key: 'squad', label: 'Squad' },
+  { key: 'register', label: 'Register' },
+  { key: 'training', label: 'Training' },
+  { key: 'club', label: 'Club' },
+  { key: 'settings', label: 'Settings' },
+];
+
+/**
+ * A parent gets no register and no squad list: taking attendance and editing players are coaching
+ * controls, and the backend already refuses them. Two tabs is the whole job - the child's records,
+ * then the account.
+ */
+export const PARENT_TABS: readonly TabOption[] = [
+  { key: 'family', label: 'Family' },
+  { key: 'settings', label: 'Settings' },
+];
+
+export const TabBar: React.FC<{
+  active: ProTab;
+  tabs?: readonly TabOption[];
+  onChange: (tab: ProTab) => void;
+}> = ({ active, tabs = COACH_TABS, onChange }) => (
   <View style={styles.bar}>
-    {TABS.map(tab => {
+    {tabs.map(tab => {
       const selected = tab.key === active;
       return (
         <Pressable
@@ -22,7 +53,8 @@ export const TabBar: React.FC<{ active: ProTab; onChange: (tab: ProTab) => void 
           onPress={() => onChange(tab.key)}
           style={[styles.tab, selected && styles.tabOn]}
           accessibilityRole="tab"
-          accessibilityState={{ selected }}
+          // The aria alias, because react-native-web 0.21 does not read `accessibilityState`.
+          aria-selected={selected}
           accessibilityLabel={tab.label}
         >
           <Text style={[styles.label, selected && styles.labelOn]}>{tab.label}</Text>
@@ -46,9 +78,11 @@ const styles = {
   },
   tab: {
     flex: 1,
+    minHeight: 44,
     paddingVertical: 10,
     borderRadius: ci.radius.control,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   tabOn: { backgroundColor: ci.color.accent },
   label: { color: ci.color.muted, fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },

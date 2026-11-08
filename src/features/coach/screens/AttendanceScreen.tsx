@@ -14,6 +14,7 @@ import {
   describeCounts,
   mergeAttendance,
   parseAttendanceRows,
+  unmarkedPlayerIds,
   withAttendance,
   type AttendanceMap,
   type AttendanceRow,
@@ -285,10 +286,11 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
   );
   const rate = counts ? attendanceRate(counts) : null;
 
-  const mark = (playerId: string, status: AttendanceStatus): void => {
-    if (!canEdit || !teamId || !selectedDate) return;
+  /** True once the row is on this phone, whether it went to the cache or to the outbox. */
+  const mark = (playerId: string, status: AttendanceStatus): boolean => {
+    if (!canEdit || !teamId || !selectedDate) return false;
     const existing = recordsRef.current[attendanceKey(playerId, selectedDate)];
-    if (existing?.status === status) return;
+    if (existing?.status === status) return false;
 
     setSaveError(null);
     const recordedAt = new Date().toISOString();
@@ -306,7 +308,7 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
       recordsRef.current = next;
       setRecords(next);
       if (installationId) persistRecords(next);
-      return;
+      return true;
     }
 
     const queued = queue.enqueue({
@@ -328,13 +330,34 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
       setSaveError(
         'This mark was not saved: the sync queue is not attached to an account. Sign in again, then mark the player.',
       );
-      return;
+      return false;
     }
 
     const next = withAttendance(recordsRef.current, row);
     recordsRef.current = next;
     setRecords(next);
     persistRecords(next);
+    return true;
+  };
+
+  /**
+   * Bulk entry runs the same `mark` a tap on one player runs, so the deterministic row id, the
+   * on-phone cache and the outbox entry are identical - a coach at a ground with no signal
+   * fills the register the same way, one queue row per player.
+   */
+  const markRemainingPresent = (): void => {
+    if (!canEdit || !teamId || !selectedDate) return;
+    const blanks = unmarkedPlayerIds(playerIds, recordsRef.current, selectedDate);
+    if (blanks.length === 0) return;
+    let failed = 0;
+    for (const playerId of blanks) {
+      if (!mark(playerId, 'present')) failed += 1;
+    }
+    if (failed > 0) {
+      setSaveError(
+        `${failed} of ${blanks.length} player(s) were not marked: the sync queue is not attached to an account. Sign in again, then mark them.`,
+      );
+    }
   };
 
   const exportRegister = async (): Promise<void> => {
@@ -420,9 +443,11 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
               <View style={styles.weekTitle}>
                 <Text style={styles.weekRange}>{formatWeekRange(weekStart)}</Text>
                 {isCurrentWeek ? (
-                  <Text style={styles.weekMeta}>This week</Text>
+                  <View style={styles.metaSlot}>
+                    <Text style={styles.weekMeta}>This week</Text>
+                  </View>
                 ) : (
-                  <Pressable onPress={() => setWeekStart(mondayOf(today))}>
+                  <Pressable onPress={() => setWeekStart(mondayOf(today))} style={styles.linkTap} accessibilityRole="button">
                     <Text style={styles.weekLink}>Back to this week</Text>
                   </Pressable>
                 )}
@@ -533,6 +558,30 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
                     </View>
                   ) : null}
                 </View>
+                {canEdit && visiblePlayers.length > 0 ? (
+                  <Pressable
+                    onPress={markRemainingPresent}
+                    disabled={counts === null || counts.unmarked === 0}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      counts !== null && counts.unmarked > 0
+                        ? `Mark ${counts.unmarked} unmarked player(s) present`
+                        : 'Every player on this squad already has a mark for this session'
+                    }
+                    style={[styles.bulk, counts !== null && counts.unmarked === 0 && styles.bulkOff]}
+                  >
+                    <Text style={styles.bulkLabel}>
+                      {counts !== null && counts.unmarked > 0
+                        ? `Mark ${counts.unmarked} unmarked present`
+                        : 'Squad fully marked'}
+                    </Text>
+                  </Pressable>
+                ) : null}
+                {canEdit && visiblePlayers.length > 0 ? (
+                  <Text style={styles.bulkHint}>
+                    Only sets players with no mark yet. A late, absent or excused mark stays as the coach made it.
+                  </Text>
+                ) : null}
                 <View style={styles.sessionFooter}>
                   <Text style={styles.saveHint}>
                     {preview
@@ -541,7 +590,7 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
                         ? 'Marks save on this phone first, then sync.'
                         : 'Only a coach or manager can change these marks.'}
                   </Text>
-                  <Pressable onPress={onOpenSetup}>
+                  <Pressable onPress={onOpenSetup} style={styles.linkTap} accessibilityRole="button">
                     <Text style={styles.link}>{canEdit ? 'Edit training days' : 'View training days'}</Text>
                   </Pressable>
                 </View>
@@ -622,8 +671,8 @@ const styles = {
   weekCard: { padding: 12, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 12 },
   weekNav: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   weekArrow: {
-    width: 38,
-    height: 38,
+    width: 44,
+    height: 44,
     borderRadius: ci.radius.control,
     backgroundColor: ci.color.background,
     alignItems: 'center',
@@ -633,13 +682,17 @@ const styles = {
   weekTitle: { flex: 1, alignItems: 'center', gap: 2 },
   weekRange: { color: ci.color.text, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums' as const] },
   weekMeta: { color: ci.color.muted, fontSize: 12 },
+  metaSlot: { minHeight: 44, justifyContent: 'center' },
+  linkTap: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
   weekLink: { color: ci.color.primary, fontSize: 12, fontWeight: '700' },
   dayRow: { flexDirection: 'row', gap: 4 },
   day: {
     flex: 1,
+    minHeight: 44,
     paddingVertical: 8,
     borderRadius: ci.radius.control,
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 2,
     backgroundColor: ci.color.background,
     borderWidth: 1,
@@ -647,12 +700,14 @@ const styles = {
   },
   daySelected: { backgroundColor: ci.color.accent, borderColor: ci.color.accent },
   exportButton: {
+    minHeight: 44,
     paddingVertical: 11,
     borderRadius: ci.radius.control,
     borderWidth: 1,
     borderColor: ci.color.primary,
     backgroundColor: ci.color.background,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   exportButtonOff: { opacity: 0.5 },
   exportLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '800' },
@@ -665,7 +720,7 @@ const styles = {
   warningCard: { padding: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.surface, gap: 8 },
   error: { color: ci.color.danger, fontSize: 13, lineHeight: 19 },
   notice: { color: ci.color.warning, fontSize: 13, lineHeight: 19 },
-  retry: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start' },
+  retry: { minHeight: 44, paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start', justifyContent: 'center' },
   retryLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '700' },
   sessionCard: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 10 },
   sessionHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -704,12 +759,27 @@ const styles = {
   statusRow: { flexDirection: 'row', gap: 6 },
   status: {
     flex: 1,
-    paddingVertical: 9,
+    minHeight: 44,
+    paddingVertical: 10,
     borderRadius: ci.radius.control,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: ci.color.background,
     borderWidth: 1,
     borderColor: ci.color.border,
   },
-  statusLabel: { color: ci.color.muted, fontSize: 11, fontWeight: '700' },
+  statusLabel: { color: ci.color.muted, fontSize: 11, fontWeight: '700', textAlign: 'center' },
+  bulk: {
+    minHeight: 44,
+    paddingHorizontal: 14,
+    borderRadius: ci.radius.control,
+    borderWidth: 1,
+    borderColor: ci.color.primary,
+    backgroundColor: ci.color.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bulkOff: { borderColor: ci.color.border, opacity: 0.6 },
+  bulkLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '800' },
+  bulkHint: { color: ci.color.muted, fontSize: 11, lineHeight: 16 },
 } as const;

@@ -17,6 +17,7 @@ import {
   mergeAttendance,
   parseAttendanceRows,
   summariseAttendance,
+  unmarkedPlayerIds,
   withAttendance,
   type AttendanceMap,
   type AttendanceRow,
@@ -144,6 +145,15 @@ async function main(): Promise<void> {
   assert('attendance rate treats late as attending and ignores unmarked players', attendanceRate(counts) === 67, attendanceRate(counts));
   assert('the summary names only statuses that occurred', describeCounts(counts) === '1 present · 1 late · 1 absent · 1 unmarked', describeCounts(counts));
   assert('nothing marked has no rate yet', attendanceRate(countStatuses(['p1'], {}, '2026-10-19')) === null);
+
+  assert(
+    'bulk entry picks out only the player with no mark',
+    unmarkedPlayerIds(['p1', 'p2', 'p3', 'p4'], map, '2026-10-19').join(',') === 'p4',
+    unmarkedPlayerIds(['p1', 'p2', 'p3', 'p4'], map, '2026-10-19'),
+  );
+  assert('a session with a late, absent or excused mark is not refilled', unmarkedPlayerIds(['p1', 'p2', 'p3'], map, '2026-10-19').length === 0);
+  assert('a session nobody has touched leaves the whole squad blank', unmarkedPlayerIds(['p1', 'p2', 'p3', 'p4'], map, '2026-10-21').length === 4);
+  assert('bulk order follows the squad list, not the marks', unmarkedPlayerIds(['p4', 'p3', 'p2', 'p1'], {}, '2026-10-19').join(',') === 'p4,p3,p2,p1');
 
   const season = indexAttendance([
     ...serverRows,

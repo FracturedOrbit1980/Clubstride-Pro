@@ -121,6 +121,16 @@ export function countStatuses(
 
 export const recordedCount = (counts: StatusCounts): number => counts.total - counts.unmarked;
 
+/**
+ * The squad in listing order, minus anyone already marked. Bulk entry writes exactly this set: a
+ * deliberate late, absent or excused mark is a coaching decision and is never overwritten.
+ */
+export const unmarkedPlayerIds = (
+  playerIds: readonly string[],
+  map: AttendanceMap,
+  sessionDate: string,
+): string[] => playerIds.filter(playerId => map[attendanceKey(playerId, sessionDate)] === undefined);
+
 /** Present plus late over the players who were marked at all. Null until something is marked. */
 export function attendanceRate(counts: StatusCounts): number | null {
   const recorded = recordedCount(counts);

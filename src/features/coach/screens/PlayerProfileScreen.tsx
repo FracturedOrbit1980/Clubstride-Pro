@@ -24,12 +24,15 @@ import type { SquadPlayerRow } from '../attendance/squad';
 import { formatDay, sessionToday } from '../attendance/week';
 import {
   CATEGORIES,
+  METRICS,
   METRICS_BY_CATEGORY,
+  RATING_BANDS,
   RATING_MAX,
   RATING_OPTIONS,
   categoryAverages,
   overallAverage,
   ratingText,
+  scoredCount,
   setScore,
   type MetricKey,
   type PlayerAssessment,
@@ -115,8 +118,10 @@ const attendanceForReport = async (
  */
 export const PlayerProfileScreen: React.FC<{
   player: SquadPlayerRow;
+  /** Where the back button returns to: 'Squad' for staff, 'Family' for a parent. */
+  backLabel?: string;
   onBack: () => void;
-}> = ({ player, onBack }) => {
+}> = ({ player, backLabel = 'Squad', onBack }) => {
   const { user, isStaff } = useAuth();
   const { queue } = useSyncQueue();
   const { membership, local, preview, warning, matchLog, matchRevision } = useClubRoster();
@@ -559,8 +564,8 @@ export const PlayerProfileScreen: React.FC<{
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <View style={styles.header}>
-        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Back to squad" style={styles.back}>
-          <Text style={styles.backLabel}>‹ Squad</Text>
+        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel={`Back to ${backLabel.toLowerCase()}`} style={styles.back}>
+          <Text style={styles.backLabel}>‹ {backLabel}</Text>
         </Pressable>
         <Text style={styles.headerMeta}>{membership?.teamName ?? 'Clubstride Pro'}</Text>
       </View>
@@ -660,7 +665,12 @@ export const PlayerProfileScreen: React.FC<{
               ))}
             </View>
             <Text style={styles.hint}>
-              Each axis is the average of its metrics, from 1 at the centre to 5 on the outer ring.
+              Each axis is the average of its metrics, from 1 at the centre to 5 on the outer ring. A category with no
+              rating is left open rather than pulled to the centre.
+            </Text>
+            <Text style={styles.hint}>
+              The overall number is the mean of the ratings recorded so far - {scoredCount(scores)} of
+              {' '}{METRICS.length} so far. It is not a percentage, and players are not ranked against each other.
             </Text>
           </View>
 
@@ -669,6 +679,21 @@ export const PlayerProfileScreen: React.FC<{
             <Text style={styles.hint}>
               {canEdit ? 'Tap a score from 1 to 5, in half steps.' : 'Only a coach or manager can change these.'}
             </Text>
+            <View style={styles.rubric}>
+              {RATING_BANDS.map(band => (
+                <View key={band.value} style={styles.rubricRow}>
+                  <Text style={styles.rubricValue}>{band.value}</Text>
+                  <View style={styles.rubricText}>
+                    <Text style={styles.rubricLabel}>{band.label}</Text>
+                    <Text style={styles.rubricMeaning}>{band.meaning}</Text>
+                  </View>
+                </View>
+              ))}
+              <Text style={styles.hint}>
+                Half steps sit between two bands and take the label above. A dash means the metric has not been rated -
+                it is not a score of 1.
+              </Text>
+            </View>
             {METRICS_BY_CATEGORY.map(group => (
               <View key={group.key} style={styles.group}>
                 <View style={styles.groupHead}>
@@ -714,6 +739,9 @@ export const PlayerProfileScreen: React.FC<{
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Coach note</Text>
+            <Text style={styles.hint}>
+              Anyone holding the share link or the report PDF reads this note. There is no private-only field yet.
+            </Text>
             {canEdit ? (
               <>
                 <TextInput
@@ -835,7 +863,7 @@ export const PlayerProfileScreen: React.FC<{
 const styles = {
   screen: { padding: 16, gap: 12, backgroundColor: ci.color.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  back: { paddingVertical: 6, paddingRight: 10 },
+  back: { minHeight: 44, paddingVertical: 6, paddingRight: 10, justifyContent: 'center' },
   backLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '800' },
   headerMeta: { color: ci.color.muted, fontSize: 12 },
   playerHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -868,7 +896,7 @@ const styles = {
   exportLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '800' },
   exportHint: { color: ci.color.muted, fontSize: 11, lineHeight: 16 },  error: { color: ci.color.danger, fontSize: 13, lineHeight: 19 },
   notice: { color: ci.color.go, fontSize: 13, lineHeight: 19 },
-  retry: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start' },
+  retry: { minHeight: 44, paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start', justifyContent: 'center' },
   retryLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '700' },
   card: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 10 },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
@@ -897,6 +925,22 @@ const styles = {
   categoryLabel: { color: ci.color.muted, fontSize: 12, fontWeight: '700' },
   categoryValue: { color: ci.color.text, fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums' as const] },
   group: { gap: 10, paddingTop: 6 },
+  rubric: { gap: 8, paddingVertical: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: ci.color.border },
+  rubricRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  rubricValue: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: ci.color.raised,
+    color: ci.color.text,
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  rubricText: { flex: 1, gap: 1 },
+  rubricLabel: { color: ci.color.text, fontSize: 13, fontWeight: '700' },
+  rubricMeaning: { color: ci.color.muted, fontSize: 12, lineHeight: 17 },
   groupHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   groupTitle: { color: ci.color.primary, fontSize: 13, fontWeight: '800', letterSpacing: 0.3, textTransform: 'uppercase' },
   groupAverage: { color: ci.color.accent, fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums' as const] },
@@ -909,7 +953,7 @@ const styles = {
   scaleRow: { flexDirection: 'row', gap: 3 },
   scaleCell: {
     flex: 1,
-    minHeight: 26,
+    minHeight: 44,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
@@ -918,7 +962,7 @@ const styles = {
     borderColor: ci.color.border,
   },
   scaleCellOn: { backgroundColor: ci.color.accent, borderColor: ci.color.accent },
-  scaleLabel: { color: ci.color.muted, fontSize: 9, fontWeight: '700', fontVariant: ['tabular-nums' as const] },
+  scaleLabel: { color: ci.color.muted, fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums' as const] },
   scaleLabelOn: { color: ci.color.onAccent },
   notesInput: {
     minHeight: 88,
