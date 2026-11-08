@@ -9,6 +9,7 @@ import { PlayerProfileScreen } from './src/features/coach/screens/PlayerProfileS
 import { SetupScreen } from './src/features/coach/screens/SetupScreen';
 import { SharedProfileScreen } from './src/features/coach/screens/SharedProfileScreen';
 import { SquadScreen } from './src/features/coach/screens/SquadScreen';
+import { ParentOverviewScreen } from './src/features/parent/screens/ParentOverviewScreen';
 import type { SquadPlayerRow } from './src/features/coach/attendance/squad';
 import { shareCodeFromUrl } from './src/features/coach/player/shareCode';
 import { loadAppMode, saveAppMode, type AppMode } from './src/features/shared/appMode';
@@ -19,7 +20,7 @@ import { SignInScreen } from './src/features/shared/screens/SignInScreen';
 import { SignUpScreen } from './src/features/shared/screens/SignUpScreen';
 import { SyncStatusBanner } from './src/features/shared/components/SyncStatusBanner';
 import { BrandLockup } from './src/features/shared/components/BrandLockup';
-import { TabBar, type ProTab } from './src/features/shared/components/TabBar';
+import { COACH_TABS, PARENT_TABS, TabBar, type ProTab } from './src/features/shared/components/TabBar';
 import { ci } from './src/features/shared/ci';
 import { ClubRosterProvider, useClubRoster } from './src/features/shared/ClubRosterProvider';
 
@@ -46,7 +47,7 @@ const Problem: React.FC<{ title: string; body: string }> = ({ title, body }) => 
   );
 };
 
-// 'player' is a drill-down from the Squad tab, not a fifth tab: the dock stays on Squad.
+// 'player' is a drill-down from the Squad or Family tab, not another tab in the dock.
 type RootView = ProTab | 'lite' | 'player';
 type AuthView = 'signIn' | 'signUp' | 'forgot';
 
@@ -66,14 +67,24 @@ const Root: React.FC = () => {
   const selectedPlayer = player && playerScope === rosterScope
     ? preview && warning ? null : previewPlayers.find(next => next.id === player.id) ?? null
     : null;
+  // A parent is not a junior coach: the squad list, the register and training are coaching
+  // controls, and `local` keeps a read-only device squad out of this branch.
+  const isParent = membership?.role === 'parent' && !local;
+  const homeView: ProTab = isParent ? 'family' : 'squad';
 
   useEffect(() => {
     if (previousScope.current !== rosterScope || (player && !selectedPlayer)) {
       previousScope.current = rosterScope;
       setPlayer(null);
-      setView(current => current === 'player' ? 'squad' : current);
+      setView(current => (current === 'player' ? homeView : current));
     }
-  }, [rosterScope, player, selectedPlayer, revision]);
+  }, [rosterScope, player, selectedPlayer, revision, homeView]);
+  // The dock changes with the role, and so must the tab under it: an account that lands on 'squad'
+  // from the stored view would otherwise be shown an empty body with no way to reach Family.
+  useEffect(() => {
+    setView(current =>
+      current === 'lite' || current === 'settings' || current === 'player' ? current : homeView);
+  }, [homeView]);
   // A share link outranks the rest of the app: the code is the credential, so this has to open
   // for a visitor with no account at all.
   const [sharedCode, setSharedCode] = useState<string | null>(() =>
@@ -85,7 +96,7 @@ const Root: React.FC = () => {
     void loadAppMode().then(stored => {
       if (!alive) return;
       setMode(stored);
-      setView(stored === 'lite' ? 'lite' : 'squad');
+      setView(stored === 'lite' ? 'lite' : homeView);
       setModeReady(true);
     });
     return () => {
@@ -118,7 +129,7 @@ const Root: React.FC = () => {
 
   const changeMode = async (next: AppMode): Promise<string | null> => {
     setMode(next);
-    setView(next === 'lite' ? 'lite' : 'squad');
+    setView(next === 'lite' ? 'lite' : homeView);
     return saveAppMode(next);
   };
 
@@ -197,7 +208,7 @@ const Root: React.FC = () => {
     );
   }
 
-  const activeTab: ProTab = view === 'lite' || view === 'player' ? 'squad' : view;
+  const activeTab: ProTab = view === 'lite' || view === 'player' ? homeView : view;
 
   const openPlayer = (next: SquadPlayerRow): void => {
     setPlayerScope(rosterScope);
@@ -228,16 +239,23 @@ const Root: React.FC = () => {
             <BrandLockup size={24} onPress={() => void changeMode('lite')} accessibilityLabel="Switch to Lite view" />
           </View>
           <View style={styles.tabBody}>
-            {view === 'squad' ? <SquadScreen key={rosterScope} onOpenPlayer={openPlayer} /> : null}
+            {isParent ? (
+              view === 'family' ? <ParentOverviewScreen key={rosterScope} onOpenChild={openPlayer} /> : null
+            ) : (
+              <>
+                {view === 'squad' ? <SquadScreen key={rosterScope} onOpenPlayer={openPlayer} /> : null}
+                {view === 'register' ? <AttendanceScreen key={rosterScope} onOpenSetup={() => setView('training')} /> : null}
+                {view === 'training' ? <SetupScreen key={rosterScope} onOpenAttendance={() => setView('register')} /> : null}
+              </>
+            )}
             {view === 'player' && selectedPlayer ? (
               <PlayerProfileScreen
                 key={`${rosterScope}|${selectedPlayer.id}`}
                 player={selectedPlayer}
-                onBack={() => setView('squad')}
+                backLabel={isParent ? 'Family' : 'Squad'}
+                onBack={() => setView(homeView)}
               />
             ) : null}
-            {view === 'register' ? <AttendanceScreen key={rosterScope} onOpenSetup={() => setView('training')} /> : null}
-            {view === 'training' ? <SetupScreen key={rosterScope} onOpenAttendance={() => setView('register')} /> : null}
             {view === 'settings' ? (
               <SettingsScreen
                 key={rosterScope}
@@ -249,7 +267,7 @@ const Root: React.FC = () => {
               />
             ) : null}
           </View>
-          <TabBar active={activeTab} onChange={setView} />
+          <TabBar active={activeTab} tabs={isParent ? PARENT_TABS : COACH_TABS} onChange={setView} />
         </>
       ) : null}
     </View>

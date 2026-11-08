@@ -118,8 +118,10 @@ const attendanceForReport = async (
  */
 export const PlayerProfileScreen: React.FC<{
   player: SquadPlayerRow;
+  /** Where the back button returns to: 'Squad' for staff, 'Family' for a parent. */
+  backLabel?: string;
   onBack: () => void;
-}> = ({ player, onBack }) => {
+}> = ({ player, backLabel = 'Squad', onBack }) => {
   const { user, isStaff } = useAuth();
   const { queue } = useSyncQueue();
   const { membership, local, preview, warning, matchLog, matchRevision } = useClubRoster();
@@ -562,8 +564,8 @@ export const PlayerProfileScreen: React.FC<{
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <View style={styles.header}>
-        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="Back to squad" style={styles.back}>
-          <Text style={styles.backLabel}>‹ Squad</Text>
+        <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel={`Back to ${backLabel.toLowerCase()}`} style={styles.back}>
+          <Text style={styles.backLabel}>‹ {backLabel}</Text>
         </Pressable>
         <Text style={styles.headerMeta}>{membership?.teamName ?? 'Clubstride Pro'}</Text>
       </View>
