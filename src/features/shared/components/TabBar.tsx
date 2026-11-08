@@ -71,6 +71,9 @@ export const TabBar: React.FC<{
 const styles = {
   bar: {
     flexDirection: 'row',
+    // Four tabs cannot each be wide enough for their own word at 200% browser zoom on a 390 phone:
+    // past that point the row wraps to two lines instead of the labels running into each other.
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 12,
@@ -81,7 +84,10 @@ const styles = {
     borderTopColor: ci.color.border,
   },
   tab: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 'auto',
+    minWidth: 68,
     minHeight: 44,
     paddingVertical: 10,
     borderRadius: ci.radius.control,

@@ -881,10 +881,12 @@ const styles = {
   back: { minHeight: 44, paddingVertical: 6, paddingRight: 10, justifyContent: 'center' },
   backLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '800' },
   headerMeta: { color: ci.color.muted, fontSize: 12 },
-  playerHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  shirt: { width: 46, height: 46, borderRadius: 23, backgroundColor: ci.color.accent, alignItems: 'center', justifyContent: 'center' },
+  // The name is the widest thing here, so at 200% browser zoom it takes the row and the overall
+  // card drops below it, instead of the name breaking mid-word inside a sliver of a column.
+  playerHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
+  shirt: { width: 46, height: 46, borderRadius: 23, backgroundColor: ci.color.accent, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   shirtLabel: { color: ci.color.onAccent, fontSize: 17, fontWeight: '800' },
-  playerText: { flex: 1, gap: 2 },
+  playerText: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
   title: { color: ci.color.text, fontSize: 22, fontWeight: '800' },
   meta: { color: ci.color.muted, fontSize: 13, lineHeight: 19 },
   overall: {
@@ -895,6 +897,7 @@ const styles = {
     alignItems: 'center',
     borderWidth: 1,
     borderColor: ci.color.border,
+    flexShrink: 0,
   },
   overallValue: { color: ci.color.accent, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums' as const] },
   overallLabel: { color: ci.color.muted, fontSize: 10, fontWeight: '700' },
