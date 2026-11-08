@@ -5,6 +5,7 @@ import {
   categoryAverages,
   overallAverage,
   ratingText,
+  rubricLegend,
   type CategoryKey,
   type Metric,
   type Scores,
@@ -159,13 +160,15 @@ const drawAttendance = (ops: string[], top: number, attendance: AttendanceSummar
   ], 13);
 };
 
-const radarPoints = (
+/** One point per rated axis, null where the coach has not scored that category yet. */
+const radarShape = (
   values: readonly (number | null)[],
   centre: Point,
   radius: number,
-): Point[] =>
+): (Point | null)[] =>
   values.map((value, index) => {
-    const fraction = value === null ? 0 : Math.min(1, Math.max(0, value / RATING_MAX));
+    if (value === null) return null;
+    const fraction = Math.min(1, Math.max(0, value / RATING_MAX));
     const radians = (radarAngle(index, values.length) * Math.PI) / 180;
     return {
       x: centre.x + radius * fraction * Math.cos(radians),
@@ -192,10 +195,23 @@ const drawRadar = (ops: string[], top: number, values: readonly (number | null)[
   const outer = ring(1);
   for (const point of outer) line(ops, centre.x, centre.y, point.x, point.y, LINE, 0.6);
 
-  const plotted = radarPoints(values, centre, radius);
-  fillPolygon(ops, plotted, RADAR_FILL);
-  strokePolygon(ops, plotted, GREEN, 1.2);
+  const shape = radarShape(values, centre, radius);
+  const plotted = shape.filter((point): point is Point => point !== null);
+  const missing = values.length - plotted.length;
+  if (missing === 0 && plotted.length >= 3) {
+    fillPolygon(ops, plotted, RADAR_FILL);
+    strokePolygon(ops, plotted, GREEN, 1.2);
+  } else {
+    // An unrated axis is left open: pulling it to the centre would plot it as the lowest mark.
+    shape.forEach((point, index) => {
+      const next = shape[(index + 1) % shape.length];
+      if (point && next) line(ops, point.x, point.y, next.x, next.y, GREEN, 1.2);
+    });
+  }
   for (const point of plotted) fillCircle(ops, point.x, point.y, 2.2, GREEN);
+  if (missing > 0) {
+    text(ops, 'F1', 7.5, MARGIN, centre.y + radius + 20, 'A category with no rating is left open.', FAINT);
+  }
 
   labels.forEach((label, index) => {
     const radians = (radarAngle(index, labels.length) * Math.PI) / 180;
@@ -240,7 +256,7 @@ const drawMetricRow = (
 const drawRatings = (ops: string[], top: number, scores: Scores): void => {
   const averages = categoryAverages(scores);
   text(ops, 'F2', 13, MARGIN, top, 'Ratings', INK);
-  text(ops, 'F1', 7.5, MARGIN + 58, top + 1, '1 = needs work, 5 = strength. A dash means not rated yet.', MUTED);
+  text(ops, 'F1', 7.5, MARGIN + 58, top + 1, `${rubricLegend()}. A dash means not rated yet.`, MUTED);
 
   const columns: Array<{ x: number; groups: readonly { key: CategoryKey; label: string; metrics: readonly Metric[] }[] }> = [
     { x: MARGIN, groups: METRICS_BY_CATEGORY.slice(0, 2) },

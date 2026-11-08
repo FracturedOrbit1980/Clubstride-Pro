@@ -78,6 +78,35 @@ export const RATING_OPTIONS: readonly number[] = Array.from(
 
 export type Scores = Partial<Record<MetricKey, number>>;
 
+export interface RatingBand {
+  value: number;
+  label: string;
+  meaning: string;
+}
+
+/**
+ * What each whole step means, written once so the profile screen, the shared page and the report
+ * PDF cannot describe the scale differently. It is a coaching judgement in words, not a normed
+ * instrument - and a metric with no rating is listed as not rated rather than as the bottom band.
+ * A half step takes the band above it.
+ */
+export const RATING_BANDS: readonly RatingBand[] = [
+  { value: 1, label: 'Needs work', meaning: 'Not yet part of how this player plays.' },
+  { value: 2, label: 'Early', meaning: 'Tries it when the session coaches for it, not yet in a game.' },
+  { value: 3, label: 'Competent', meaning: 'Does it reliably in training, now and then in a game.' },
+  { value: 4, label: 'Strong', meaning: 'Does it in games without being prompted.' },
+  { value: 5, label: 'Strength', meaning: 'The skill this player is looked to for.' },
+];
+
+export const ratingBand = (rating: number | null): RatingBand | null => {
+  if (rating === null) return null;
+  const rounded = Math.min(RATING_MAX, Math.max(RATING_MIN, Math.round(rating)));
+  return RATING_BANDS.find(band => band.value === rounded) ?? null;
+};
+
+/** '1 Needs work, 2 Early, ...' - the one-line version for narrow print. */
+export const rubricLegend = (): string => RATING_BANDS.map(band => `${band.value} ${band.label}`).join(', ');
+
 export interface PlayerAssessment {
   id: string;
   playerId: string;

@@ -2,7 +2,7 @@ import React from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
 import Svg, { Circle, Line, Polygon, Text as SvgText } from 'react-native-svg';
 import { ci } from '../../shared/ci';
-import { radarAngle, radarPoint, radarPoints, pointsAttribute } from './radar';
+import { radarAngle, radarGeometry, radarPoint, pointsAttribute, type RadarPoint } from './radar';
 
 const VIEW = 300;
 const CENTER = { x: VIEW / 2, y: VIEW / 2 };
@@ -14,23 +14,46 @@ const LABEL_FONT = Platform.OS === 'web' ? "system-ui, -apple-system, 'Segoe UI'
 
 /**
  * Four axes, one per category average. The ring marks are the scale itself, so a player scored
- * 3s draws a diamond halfway out; the numbers next to each vertex are what a parent reads, not
- * the shape alone. Drawn in a fixed viewBox and scaled down on a narrow phone: text stays
- * proportional instead of a label clipping at the card edge.
+ * 3s draws a diamond halfway out; the numbers in the list under it are what a parent reads, not
+ * the shape alone. An axis with no rating stays open: it is drawn as a dashed spoke with no
+ * point, because a shape pulled to the centre would look like the lowest score on the scale.
+ * Drawn in a fixed viewBox and scaled down on a narrow phone: text stays proportional instead
+ * of a label clipping at the card edge.
  */
 export const RadarChart: React.FC<{
-  values: readonly (number | null)[];
+  values: readonly (number | null)[],
   labels: readonly string[];
 }> = ({ values, labels }) => {
   const { width } = useWindowDimensions();
   // Screen padding (16 each side) plus the card's (14 each side).
   const widthOnScreen = Math.max(220, Math.min(VIEW, width - 60));
   const count = labels.length;
-  const vertex = radarPoints(values, RADIUS, CENTER);
-  const hasScores = values.some(value => value !== null);
+  const { points, unrated } = radarGeometry(values, RADIUS, CENTER);
+  const rated = points.filter((point): point is RadarPoint => point !== null);
+  const complete = count > 0 && unrated.length === 0;
+  const hasScores = rated.length > 0;
+
+  // Adjacent rated axes join up. A line across an unrated axis would rate it by implication.
+  const segments: [RadarPoint, RadarPoint][] = [];
+  if (!complete) {
+    for (let index = 0; index < count; index += 1) {
+      const from = points[index];
+      const to = points[(index + 1) % count];
+      if (from && to) segments.push([from, to]);
+    }
+  }
+
+  const description = values
+    .map((value, index) => `${labels[index]}: ${value === null ? 'not rated' : `average ${value}`}`)
+    .join('. ');
 
   return (
-    <Svg width={widthOnScreen} height={widthOnScreen} viewBox={`0 0 ${VIEW} ${VIEW}`} accessibilityLabel="Player ratings radar">
+    <Svg
+      width={widthOnScreen}
+      height={widthOnScreen}
+      viewBox={`0 0 ${VIEW} ${VIEW}`}
+      accessibilityLabel={`Ratings radar. ${description}`}
+    >
       {GRID.map(fraction => (
         <Polygon
           key={fraction}
@@ -47,6 +70,7 @@ export const RadarChart: React.FC<{
 
       {labels.map((label, index) => {
         const edge = radarPoint(index, count, 1, RADIUS, CENTER);
+        const open = unrated.includes(index);
         return (
           <Line
             key={`axis-${label}`}
@@ -54,24 +78,40 @@ export const RadarChart: React.FC<{
             y1={CENTER.y}
             x2={edge.x}
             y2={edge.y}
-            stroke={ci.color.border}
+            stroke={open ? ci.color.borderInput : ci.color.border}
             strokeWidth={1}
+            {...(open ? { strokeDasharray: '4 4' } : {})}
           />
         );
       })}
 
-      <Polygon
-        points={pointsAttribute(vertex)}
-        fill={ci.color.primary}
-        fillOpacity={hasScores ? 0.28 : 0}
-        stroke={ci.color.primary}
-        strokeWidth={2}
-        strokeLinejoin="round"
-      />
+      {complete ? (
+        <Polygon
+          points={pointsAttribute(rated)}
+          fill={ci.color.primary}
+          fillOpacity={hasScores ? 0.28 : 0}
+          stroke={ci.color.primary}
+          strokeWidth={2}
+          strokeLinejoin="round"
+        />
+      ) : null}
 
-      {vertex.map((point, index) => (
-        <Circle key={`vertex-${index}`} cx={point.x} cy={point.y} r={3.5} fill={ci.color.accent} />
+      {segments.map(([from, to], index) => (
+        <Line
+          key={`segment-${index}`}
+          x1={from.x}
+          y1={from.y}
+          x2={to.x}
+          y2={to.y}
+          stroke={ci.color.primary}
+          strokeWidth={2}
+          strokeLinecap="round"
+        />
       ))}
+
+      {points.map((point, index) =>
+        point ? <Circle key={`vertex-${index}`} cx={point.x} cy={point.y} r={3.5} fill={ci.color.accent} /> : null,
+      )}
 
       {labels.map((label, index) => {
         const anchor = radarPoint(index, count, 1, RADIUS + LABEL_GAP, CENTER);

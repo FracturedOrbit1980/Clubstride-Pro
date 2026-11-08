@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../../../core/context/AuthContext';
 import { supabase } from '../../../core/supabaseClient';
-import { CATEGORIES, METRICS_BY_CATEGORY, RATING_MAX, categoryAverages, overallAverage, ratingText } from '../player/assessment';
+import { CATEGORIES, METRICS_BY_CATEGORY, RATING_MAX, categoryAverages, overallAverage, ratingText, rubricLegend } from '../player/assessment';
 import { entryMinutesText, formatPercentage, gameTimeText, summariseMinutes, type PlayerMatchEntry } from '../player/minutes';
 import { formatDay } from '../attendance/week';
 import { RadarChart } from '../player/RadarChart';
@@ -261,11 +261,20 @@ export const SharedProfileScreen: React.FC<{
                 </View>
               ))}
             </View>
-            <Text style={styles.hint}>Each axis is the average of its metrics, from 1 at the centre to 5 on the outer ring.</Text>
+            <Text style={styles.hint}>
+              Each axis is the average of its metrics, from 1 at the centre to 5 on the outer ring. A dashed axis with no
+              mark has not been rated yet.
+            </Text>
+            <Text style={styles.hint}>
+              The overall number is the mean of the ratings recorded so far. It is not a percentage and not a ranking.
+            </Text>
           </View>
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Ratings</Text>
+            <Text style={styles.hint}>
+              {rubricLegend()}. A dash means the coach has not rated that one yet.
+            </Text>
             {METRICS_BY_CATEGORY.map(group => (
               <View key={group.key} style={styles.group}>
                 <View style={styles.groupHead}>
