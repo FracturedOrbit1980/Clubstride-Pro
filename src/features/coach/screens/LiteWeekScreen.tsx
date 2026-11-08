@@ -195,7 +195,7 @@ export const LiteWeekScreen: React.FC<{
 const styles = {
   screen: { padding: 16, gap: 12, backgroundColor: ci.color.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerAction: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
+  headerAction: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   headerActionLabel: { color: ci.color.text, fontSize: 13, fontWeight: '700' },
   title: { color: ci.color.text, fontSize: 22, fontWeight: '800' },
   subtitle: { color: ci.color.muted, fontSize: 13, lineHeight: 19 },
@@ -213,8 +213,8 @@ const styles = {
   playerName: { color: ci.color.text, fontSize: 15, fontWeight: '600' },
   warningCard: { padding: 12, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 8 },
   error: { color: ci.color.danger, fontSize: 13, lineHeight: 19 },
-  retry: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
+  retry: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   retryLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '700' },
-  primary: { padding: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.primary, alignItems: 'center' },
+  primary: { padding: 10, borderRadius: ci.radius.control, backgroundColor: ci.color.primary, alignItems: 'center', minHeight: 44, minWidth: 44, justifyContent: 'center' },
   primaryLabel: { color: ci.color.onPrimary, fontSize: 15, fontWeight: '800' },
 } as const;

@@ -302,6 +302,6 @@ const styles = {
   title: { color: ci.color.text, fontSize: 18, fontWeight: '800' },
   body: { color: ci.color.muted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   row: { flexDirection: 'row', gap: 10, marginTop: 6 },
-  action: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
+  action: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   actionLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '700' },
 } as const;

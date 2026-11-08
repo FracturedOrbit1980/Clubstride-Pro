@@ -23,6 +23,7 @@ import {
 import { cacheKey, readCache, writeCache } from '../attendance/cache';
 import { attendanceRegisterFileName, buildAttendanceRegisterPdf } from '../attendance/register';
 import { ci } from '../../shared/ci';
+import { touchRows } from '../../shared/touchRows';
 import { DEMO_USER_ID, demoAttendance, previewTrainingSettings } from '../../shared/demo';
 import { useClubRoster } from '../../shared/ClubRosterProvider';
 import {
@@ -462,36 +463,38 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
               </Pressable>
             </View>
 
-            <View style={styles.dayRow}>
-              {weekDates(weekStart).map(date => {
-                const isTrainingDay = training.days.includes(weekdayOf(date));
-                const isSelected = date === selectedDate;
-                const isToday = date === today;
-                return (
-                  <Pressable
-                    key={date}
-                    disabled={!isTrainingDay}
-                    onPress={() => setSelectedDate(date)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${formatDay(date)}, ${isTrainingDay ? (isSelected ? 'selected' : 'training day') : 'no training'}`}
-                    aria-disabled={!isTrainingDay}
-                    style={[
-                      styles.day,
-                      isSelected && styles.daySelected,
-                      !isTrainingDay && styles.dayOff,
-                      isToday && !isSelected && styles.dayToday,
-                    ]}
-                  >
-                    <Text style={[styles.dayName, isSelected && styles.daySelectedText]}>
-                      {weekdayShort(weekdayOf(date))}
-                    </Text>
-                    <Text style={[styles.dayNumber, isSelected && styles.daySelectedText]}>
-                      {Number(date.slice(8, 10))}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            {touchRows(weekDates(weekStart), 4).map(row => (
+              <View key={row[0]!} style={styles.dayRow}>
+                {row.map(date => {
+                  const isTrainingDay = training.days.includes(weekdayOf(date));
+                  const isSelected = date === selectedDate;
+                  const isToday = date === today;
+                  return (
+                    <Pressable
+                      key={date}
+                      disabled={!isTrainingDay}
+                      onPress={() => setSelectedDate(date)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${formatDay(date)}, ${isTrainingDay ? (isSelected ? 'selected' : 'training day') : 'no training'}`}
+                      aria-disabled={!isTrainingDay}
+                      style={[
+                        styles.day,
+                        isSelected && styles.daySelected,
+                        !isTrainingDay && styles.dayOff,
+                        isToday && !isSelected && styles.dayToday,
+                      ]}
+                    >
+                      <Text style={[styles.dayName, isSelected && styles.daySelectedText]}>
+                        {weekdayShort(weekdayOf(date))}
+                      </Text>
+                      <Text style={[styles.dayNumber, isSelected && styles.daySelectedText]}>
+                        {Number(date.slice(8, 10))}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
 
             {canExport ? (
               <Pressable
@@ -665,7 +668,7 @@ const styles = {
   card: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 10 },
   cardTitle: { color: ci.color.text, fontSize: 16, fontWeight: '800' },
   meta: { color: ci.color.muted, fontSize: 13, lineHeight: 19 },
-  secondary: { paddingVertical: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center' },
+  secondary: { paddingVertical: 10, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center', minHeight: 44, minWidth: 44, justifyContent: 'center' },
   secondaryLabel: { color: ci.color.text, fontSize: 14, fontWeight: '700' },
   weekCard: { padding: 12, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 12 },
   weekNav: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -681,8 +684,8 @@ const styles = {
   weekTitle: { flex: 1, alignItems: 'center', gap: 2 },
   weekRange: { color: ci.color.text, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums' as const] },
   weekMeta: { color: ci.color.muted, fontSize: 12 },
-  metaSlot: { minHeight: 44, justifyContent: 'center' },
-  linkTap: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
+  metaSlot: { minHeight: 44, minWidth: 44, justifyContent: 'center' },
+  linkTap: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'center' },
   weekLink: { color: ci.color.primary, fontSize: 12, fontWeight: '700' },
   dayRow: { flexDirection: 'row', gap: 4 },
   day: {
@@ -719,7 +722,7 @@ const styles = {
   warningCard: { padding: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.surface, gap: 8 },
   error: { color: ci.color.danger, fontSize: 13, lineHeight: 19 },
   notice: { color: ci.color.warning, fontSize: 13, lineHeight: 19 },
-  retry: { minHeight: 44, paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start', justifyContent: 'center' },
+  retry: { minHeight: 44, minWidth: 44, paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start', justifyContent: 'center' },
   retryLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '700' },
   sessionCard: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 10 },
   sessionHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },

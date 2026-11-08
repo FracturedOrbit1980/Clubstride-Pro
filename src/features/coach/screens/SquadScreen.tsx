@@ -113,7 +113,7 @@ const styles = {
   teamName: { color: ci.color.text, fontSize: 17, fontWeight: '800' },
   meta: { color: ci.color.muted, fontSize: 13 },
   error: { color: ci.color.danger, fontSize: 13 },
-  action: { marginTop: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start' },
+  action: { marginTop: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start', minHeight: 44, minWidth: 44, justifyContent: 'center' },
   actionLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   input: { borderWidth: 1, borderColor: ci.color.border, borderRadius: ci.radius.chip, color: ci.color.text, padding: 10, marginTop: 8 },

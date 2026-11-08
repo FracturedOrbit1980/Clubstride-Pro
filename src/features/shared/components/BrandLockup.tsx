@@ -41,7 +41,7 @@ export const BrandLockup: React.FC<Props> = ({ size = 30, onPress, accessibility
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? 'Switch view'}
       hitSlop={10}
-      style={[styles.row, { gap: size * 0.3 }]}
+      style={[styles.row, styles.hit, { gap: size * 0.3 }]}
     >
       {content}
     </Pressable>
@@ -50,6 +50,8 @@ export const BrandLockup: React.FC<Props> = ({ size = 30, onPress, accessibility
 
 const styles = {
   row: { flexDirection: 'row', alignItems: 'center' },
+  // react-native-web ignores hitSlop, so the wordmark itself has to carry the 44-pixel target.
+  hit: { minHeight: 44, minWidth: 44, justifyContent: 'center' },
   wordmark: { color: ci.color.text, fontWeight: '800', letterSpacing: -0.6 },
   pill: {
     backgroundColor: ci.color.accent,

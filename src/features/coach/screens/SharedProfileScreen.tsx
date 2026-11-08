@@ -321,7 +321,7 @@ export const SharedProfileScreen: React.FC<{
 const styles = {
   screen: { padding: 16, gap: 12, backgroundColor: ci.color.background, flexGrow: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 30 },
-  close: { paddingVertical: 6, paddingHorizontal: 10 },
+  close: { paddingVertical: 6, paddingHorizontal: 10, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   closeLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '800' },
   loading: { paddingVertical: 48, alignItems: 'center', gap: 10 },
   playerHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 4 },

@@ -53,6 +53,6 @@ const styles = {
   },
   headline: { color: ci.color.accent, fontSize: 14, fontWeight: '700' },
   detail: { color: ci.color.muted, fontSize: 12, marginTop: 4 },
-  retry: { marginTop: 8, paddingVertical: 6, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.primary, alignSelf: 'flex-start' },
+  retry: { marginTop: 8, paddingVertical: 6, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.primary, alignSelf: 'flex-start', minHeight: 44, minWidth: 44, justifyContent: 'center' },
   retryLabel: { color: ci.color.onPrimary, fontSize: 12, fontWeight: '800' },
 } as const;

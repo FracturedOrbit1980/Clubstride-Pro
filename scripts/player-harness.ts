@@ -92,6 +92,7 @@ import {
   type PlayerReportInput,
 } from '../src/features/coach/player/report';
 import { parseSharedProfile } from '../src/features/coach/player/sharedProfile';
+import { touchRows } from '../src/features/shared/touchRows';
 
 async function main(): Promise<void> {
   const assert = (label: string, condition: boolean, extra?: unknown): void => {
@@ -801,6 +802,22 @@ async function main(): Promise<void> {
     assessment: { scores: {}, coach_notes: 'y'.repeat(2500) },
   }).profile;
   assert('a shared note is capped at 2000 characters', crowded?.coachNotes?.length === 2000, crowded?.coachNotes?.length);
+
+  // --- 5c. the scale split into rows a thumb can hit -------------------------------------------
+
+  const scaleRows = touchRows(RATING_OPTIONS, 5);
+  assert(
+    'the nine half-steps wrap into two rows and keep the scale in order',
+    scaleRows.map(row => row.join('/')).join(' | ') === '1/1.5/2/2.5/3 | 3.5/4/4.5/5',
+    scaleRows,
+  );
+  assert('every rating step is still offered, once', scaleRows.flat().length === RATING_OPTIONS.length);
+  assert(
+    'seven weekday chips become four then three',
+    touchRows([1, 2, 3, 4, 5, 6, 7], 4).map(row => row.join('')).join('|') === '1234|567',
+  );
+  assert('an empty list makes no rows', touchRows([], 5).length === 0);
+  assert('a short list stays one row', touchRows([1, 2], 4).length === 1);
 
   console.log(process.exitCode ? '\nSOME PLAYER CHECKS FAILED' : '\nall player checks passed');
 }

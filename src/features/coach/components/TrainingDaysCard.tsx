@@ -7,6 +7,7 @@ import { cacheKey, readCache, writeCache } from '../attendance/cache';
 import { DEMO_USER_ID, previewTrainingSettings, savePreviewTraining } from '../../shared/demo';
 import { useClubRoster } from '../../shared/ClubRosterProvider';
 import { ci } from '../../shared/ci';
+import { touchRows } from '../../shared/touchRows';
 import {
   formatTrainingDays,
   normalizeTrainingDays,
@@ -214,26 +215,28 @@ export const TrainingDaysCard: React.FC = () => {
         Attendance is taken on these days. Pick every weekday this squad trains.
       </Text>
 
-      <View style={styles.weekdayRow}>
-        {WEEKDAYS.map(option => {
-          const selected = days.includes(option.value);
-          return (
-            <Pressable
-              key={option.value}
-              onPress={() => toggle(option.value)}
-              disabled={!canEdit}
-              accessibilityRole="button"
-              // The one way a state reaches a screen reader here: react-native-web 0.21 drops
-              // `accessibilityState`, and `aria-selected` is not valid on a button.
-              accessibilityLabel={`${option.long}, ${selected ? 'a training day' : 'not a training day'}`}
-              aria-disabled={!canEdit}
-              style={[styles.weekday, selected && styles.weekdaySelected, !canEdit && styles.weekdayLocked]}
-            >
-              <Text style={[styles.weekdayLabel, selected && styles.weekdayLabelSelected]}>{option.short}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {touchRows(WEEKDAYS, 4).map(row => (
+        <View key={row[0]!.value} style={styles.weekdayRow}>
+          {row.map(option => {
+            const selected = days.includes(option.value);
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => toggle(option.value)}
+                disabled={!canEdit}
+                accessibilityRole="button"
+                // The one way a state reaches a screen reader here: react-native-web 0.21 drops
+                // `accessibilityState`, and `aria-selected` is not valid on a button.
+                accessibilityLabel={`${option.long}, ${selected ? 'a training day' : 'not a training day'}`}
+                aria-disabled={!canEdit}
+                style={[styles.weekday, selected && styles.weekdaySelected, !canEdit && styles.weekdayLocked]}
+              >
+                <Text style={[styles.weekdayLabel, selected && styles.weekdayLabelSelected]}>{option.short}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
 
       <Text style={styles.summary}>
         {days.length === 0
@@ -276,9 +279,11 @@ const styles = {
   weekdayRow: { flexDirection: 'row', gap: 6 },
   weekday: {
     flex: 1,
+    minHeight: 44,
     paddingVertical: 12,
     borderRadius: ci.radius.control,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: ci.color.background,
     borderWidth: 1,
     borderColor: ci.color.border,
@@ -289,13 +294,13 @@ const styles = {
   weekdayLabelSelected: { color: ci.color.onAccent },
   summary: { color: ci.color.text, fontSize: 14, fontWeight: '600' },
   readOnly: { color: ci.color.warning, fontSize: 13 },
-  save: { paddingVertical: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.primary, alignItems: 'center' },
+  save: { paddingVertical: 10, borderRadius: ci.radius.control, backgroundColor: ci.color.primary, alignItems: 'center', minHeight: 44, minWidth: 44, justifyContent: 'center' },
   saveIdle: { backgroundColor: ci.color.disabledBg },
   saveLabel: { color: ci.color.onPrimary, fontSize: 15, fontWeight: '800' },
   saveLabelIdle: { color: ci.color.disabledText },
   saved: { color: ci.color.go, fontSize: 13 },
   notice: { color: ci.color.warning, fontSize: 13, lineHeight: 19 },
   error: { color: ci.color.danger, fontSize: 13, lineHeight: 19 },
-  retry: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start' },
+  retry: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start', minHeight: 44, minWidth: 44, justifyContent: 'center' },
   retryLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '700' },
 } as const;

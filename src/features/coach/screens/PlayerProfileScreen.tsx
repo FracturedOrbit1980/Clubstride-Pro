@@ -67,6 +67,7 @@ import {
 import { demoAttendanceSeason, demoMatchLog, previewAssessment, previewShareCode, savePreviewAssessment } from '../../shared/demo';
 import { useClubRoster } from '../../shared/ClubRosterProvider';
 import { ci } from '../../shared/ci';
+import { touchRows } from '../../shared/touchRows';
 import { savePdf } from '../../shared/pdfExport';
 
 type Phase = 'loading' | 'ready';
@@ -714,21 +715,25 @@ export const PlayerProfileScreen: React.FC<{
                         <View style={[styles.metricFill, { width: fillWidth(value) }]} />
                       </View>
                       {canEdit ? (
-                        <View style={styles.scaleRow}>
-                          {RATING_OPTIONS.map(option => {
-                            const selected = value === option;
-                            return (
-                              <Pressable
-                                key={option}
-                                onPress={() => rate(metric.key, option)}
-                                accessibilityRole="button"
-                                accessibilityLabel={`${metric.label}: ${option}${selected ? ', selected' : ''}`}
-                                style={[styles.scaleCell, selected && styles.scaleCellOn]}
-                              >
-                                <Text style={[styles.scaleLabel, selected && styles.scaleLabelOn]}>{option}</Text>
-                              </Pressable>
-                            );
-                          })}
+                        <View style={styles.scaleRows}>
+                          {touchRows(RATING_OPTIONS, 5).map(row => (
+                            <View key={row[0]!} style={styles.scaleRow}>
+                              {row.map(option => {
+                                const selected = value === option;
+                                return (
+                                  <Pressable
+                                    key={option}
+                                    onPress={() => rate(metric.key, option)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${metric.label}: ${option}${selected ? ', selected' : ''}`}
+                                    style={[styles.scaleCell, selected && styles.scaleCellOn]}
+                                  >
+                                    <Text style={[styles.scaleLabel, selected && styles.scaleLabelOn]}>{option}</Text>
+                                  </Pressable>
+                                );
+                              })}
+                            </View>
+                          ))}
                         </View>
                       ) : null}
                     </View>
@@ -896,12 +901,14 @@ const styles = {
   warningCard: { padding: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.surface, gap: 8 },
   exportCard: { padding: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.surface, gap: 8 },
   exportButton: {
+    minHeight: 44,
     paddingVertical: 11,
     borderRadius: ci.radius.control,
     borderWidth: 1,
     borderColor: ci.color.primary,
     backgroundColor: ci.color.background,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   exportLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '800' },
   exportHint: { color: ci.color.muted, fontSize: 11, lineHeight: 16 },  error: { color: ci.color.danger, fontSize: 13, lineHeight: 19 },
@@ -960,6 +967,7 @@ const styles = {
   metricValue: { color: ci.color.muted, fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums' as const] },
   metricTrack: { height: 4, borderRadius: 2, backgroundColor: ci.color.background, overflow: 'hidden' },
   metricFill: { height: 4, borderRadius: 2, backgroundColor: ci.color.accent },
+  scaleRows: { gap: 4 },
   scaleRow: { flexDirection: 'row', gap: 3 },
   scaleCell: {
     flex: 1,
@@ -986,10 +994,10 @@ const styles = {
     textAlignVertical: 'top',
   },
   notesText: { color: ci.color.text, fontSize: 13, lineHeight: 19 },
-  primary: { paddingVertical: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.accent, alignItems: 'center' },
+  primary: { minHeight: 44, paddingVertical: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.accent, alignItems: 'center', justifyContent: 'center' },
   primaryOff: { opacity: 0.5 },
   primaryLabel: { color: ci.color.onAccent, fontSize: 14, fontWeight: '800' },
-  secondary: { paddingVertical: 11, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center' },
+  secondary: { minHeight: 44, paddingVertical: 11, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center', justifyContent: 'center' },
   secondaryLabel: { color: ci.color.text, fontSize: 13, fontWeight: '700' },
   buttonRow: { flexDirection: 'row', gap: 8 },
   flexButton: { flex: 1 },
