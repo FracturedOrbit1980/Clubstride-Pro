@@ -473,8 +473,8 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
                     disabled={!isTrainingDay}
                     onPress={() => setSelectedDate(date)}
                     accessibilityRole="button"
-                    accessibilityLabel={formatDay(date)}
-                    accessibilityState={{ selected: isSelected, disabled: !isTrainingDay }}
+                    accessibilityLabel={`${formatDay(date)}, ${isTrainingDay ? (isSelected ? 'selected' : 'training day') : 'no training'}`}
+                    aria-disabled={!isTrainingDay}
                     style={[
                       styles.day,
                       isSelected && styles.daySelected,
@@ -627,8 +627,7 @@ export const AttendanceScreen: React.FC<{ onOpenSetup: () => void }> = ({ onOpen
                                 key={status}
                                 onPress={() => mark(player.id, status)}
                                 accessibilityRole="button"
-                                accessibilityLabel={`${ATTENDANCE_STATUS_LABEL[status]} for ${player.full_name}`}
-                                accessibilityState={{ selected: isOn }}
+                                accessibilityLabel={`${ATTENDANCE_STATUS_LABEL[status]} for ${player.full_name}${isOn ? ', marked' : ''}`}
                                 style={[styles.status, isOn && STATUS_ON[status].button]}
                               >
                                 <Text style={[styles.statusLabel, isOn && STATUS_ON[status].label]}>

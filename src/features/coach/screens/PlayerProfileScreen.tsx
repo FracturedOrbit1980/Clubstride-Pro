@@ -720,8 +720,7 @@ export const PlayerProfileScreen: React.FC<{
                                 key={option}
                                 onPress={() => rate(metric.key, option)}
                                 accessibilityRole="button"
-                                accessibilityLabel={`${metric.label}: ${option}`}
-                                accessibilityState={{ selected }}
+                                accessibilityLabel={`${metric.label}: ${option}${selected ? ', selected' : ''}`}
                                 style={[styles.scaleCell, selected && styles.scaleCellOn]}
                               >
                                 <Text style={[styles.scaleLabel, selected && styles.scaleLabelOn]}>{option}</Text>

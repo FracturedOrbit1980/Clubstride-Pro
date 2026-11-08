@@ -223,8 +223,10 @@ export const TrainingDaysCard: React.FC = () => {
               onPress={() => toggle(option.value)}
               disabled={!canEdit}
               accessibilityRole="button"
-              accessibilityLabel={option.long}
-              accessibilityState={{ selected, disabled: !canEdit }}
+              // The one way a state reaches a screen reader here: react-native-web 0.21 drops
+              // `accessibilityState`, and `aria-selected` is not valid on a button.
+              accessibilityLabel={`${option.long}, ${selected ? 'a training day' : 'not a training day'}`}
+              aria-disabled={!canEdit}
               style={[styles.weekday, selected && styles.weekdaySelected, !canEdit && styles.weekdayLocked]}
             >
               <Text style={[styles.weekdayLabel, selected && styles.weekdayLabelSelected]}>{option.short}</Text>

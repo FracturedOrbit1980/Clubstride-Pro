@@ -160,7 +160,8 @@ export const DrillEditorScreen: React.FC<{
           onPress={() => void save()}
           disabled={busy}
           accessibilityRole="button"
-          accessibilityState={{ busy, disabled: busy }}
+          aria-busy={busy}
+          aria-disabled={busy}
         >
           {busy ? (
             <ActivityIndicator color={ci.color.onPrimary} />

@@ -49,7 +49,7 @@ export const SquadScreen: React.FC<{ onOpenPlayer: (player: SquadPlayerRow) => v
           <Text style={styles.meta}>The same squad in Lite and Pro. Pro adds coaching tools.</Text>
           {teams.length > 1 ? teams.map(team => (
             <Pressable key={team.id} style={styles.action} onPress={() => selectTeam(team.id)} accessibilityRole="button"
-              accessibilityState={{ selected: selectedTeam === team.id }}>
+              accessibilityLabel={`${selectedTeam === team.id ? 'Selected: ' : 'Use team: '}${team.name}`}>
               <Text style={styles.actionLabel}>{selectedTeam === team.id ? 'Selected: ' : 'Use team: '}{team.name}</Text>
             </Pressable>
           )) : null}
@@ -64,7 +64,7 @@ export const SquadScreen: React.FC<{ onOpenPlayer: (player: SquadPlayerRow) => v
           <TextInput style={styles.input} value={number} onChangeText={setNumber} keyboardType="number-pad" placeholder="Shirt number" placeholderTextColor={ci.color.muted} accessibilityLabel="Shirt number" />
           <View style={styles.row}>
             {['Goalkeeper', 'Defender', 'Midfielder', 'Forward'].map(value => (
-              <Pressable key={value} style={styles.action} onPress={() => setPosition(value)} accessibilityRole="button" accessibilityState={{ selected: position === value }}>
+              <Pressable key={value} style={styles.action} onPress={() => setPosition(value)} accessibilityRole="button" accessibilityLabel={`${value}${position === value ? ', selected' : ''}`}>
                 <Text style={styles.actionLabel}>{position === value ? '• ' : ''}{value}</Text>
               </Pressable>
             ))}

@@ -119,7 +119,7 @@ export const SettingsScreen: React.FC<{
               style={[styles.modeChip, mode === option && styles.modeChipOn]}
               onPress={() => void applyMode(option)}
               accessibilityRole="button"
-              accessibilityState={{ selected: mode === option }}
+              accessibilityLabel={`${option === 'lite' ? 'Lite' : 'Pro'} view${mode === option ? ', selected' : ''}`}
             >
               <Text style={[styles.modeLabel, mode === option && styles.modeLabelOn]}>
                 {option === 'lite' ? 'Lite' : 'Pro'}

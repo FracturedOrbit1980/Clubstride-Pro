@@ -56,7 +56,8 @@ export const PrimaryButton: React.FC<ButtonProps> = ({ label, onPress, busy = fa
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: blocked, busy }}
+      aria-disabled={blocked}
+      aria-busy={busy}
       disabled={blocked}
       onPress={onPress}
       style={({ pressed }) => [
@@ -76,7 +77,8 @@ export const SecondaryButton: React.FC<ButtonProps> = ({ label, onPress, busy = 
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: blocked, busy }}
+      aria-disabled={blocked}
+      aria-busy={busy}
       disabled={blocked}
       onPress={onPress}
       style={({ pressed }) => [

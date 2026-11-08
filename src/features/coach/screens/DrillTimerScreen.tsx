@@ -103,7 +103,7 @@ export const DrillTimerScreen: React.FC<{ drill: Drill; onBack: () => void }> = 
           disabled={done}
           accessibilityRole="button"
           accessibilityLabel={running ? `Pause ${drill.name}` : `Start ${drill.name}`}
-          accessibilityState={{ disabled: done }}
+          aria-disabled={done}
         >
           <Text style={[styles.primaryLabel, done && styles.primaryLabelDone]}>
             {running ? 'Pause' : done ? 'Time' : 'Start'}
