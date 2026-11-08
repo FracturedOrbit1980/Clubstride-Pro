@@ -306,8 +306,8 @@ export const ParentOverviewScreen: React.FC<{
               <Text style={styles.meta}>Shared {formatDay(assessment.recordedAt.slice(0, 10))}.</Text>
             ) : null}
             <Text style={styles.hint}>
-              This is the one note coaches and families both read. A separate private note for the coaching staff is not
-              built yet, so anything a coach writes here can reach you.
+              This is the note written for your family, and it is the only coach text on this page. Where a club keeps
+              staff-only notes about a child, they never appear here.
             </Text>
           </View>
 

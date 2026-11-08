@@ -57,6 +57,7 @@ import {
   type PlayerMatchEntry,
 } from '../player/minutes';
 import { RadarChart } from '../player/RadarChart';
+import { PrivateNoteCard } from '../components/PrivateNoteCard';
 import { buildPlayerReportPdf, playerReportFileName } from '../player/report';
 import {
   generateShareCode,
@@ -112,7 +113,8 @@ const attendanceForReport = async (
 
 /**
  * One player's report: game time summed from completed matches, the 17 ratings behind a
- * four-axis radar, the coach's note, and the code a family can open it with. Reads the cache
+ * four-axis radar, the note a family reads, the note only staff can read, and the code a family
+ * can open it with. Reads the cache
  * first, then the club, like the register; a rating saved here is queued before it is cached,
  * so it survives leaving the ground with no signal.
  */
@@ -737,12 +739,13 @@ export const PlayerProfileScreen: React.FC<{
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Coach note</Text>
-            <Text style={styles.hint}>
-              Anyone holding the share link or the report PDF reads this note. There is no private-only field yet.
-            </Text>
+            <Text style={styles.cardTitle}>Feedback for the family</Text>
             {canEdit ? (
               <>
+                <Text style={styles.hint}>
+                  {player.full_name}'s family reads this on their page. Anyone holding the share link or the report
+                  PDF reads it too, so a note the family should not see does not belong in this field.
+                </Text>
                 <TextInput
                   value={notes}
                   onChangeText={text => {
@@ -782,10 +785,18 @@ export const PlayerProfileScreen: React.FC<{
               </>
             ) : (
               <Text style={notes ? styles.notesText : styles.hint}>
-                {notes || 'No coach note yet.'}
+                {notes || 'No feedback has been shared yet.'}
               </Text>
             )}
           </View>
+
+          {canEdit ? (
+            <PrivateNoteCard
+              playerId={player.id}
+              teamId={teamId}
+              access={installationId ? 'device' : preview ? 'preview' : 'club'}
+            />
+          ) : null}
 
           {canEdit && !installationId ? (
             <View style={styles.card}>

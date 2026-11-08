@@ -200,6 +200,31 @@ export const savePreviewAssessment = (assessment: PlayerAssessment): void => {
 };
 
 /**
+ * The staff-only note, held for the visit like every other preview edit. These three lines are
+ * invented coaching chatter about invented children: nothing here is the kind of thing a real
+ * private note would hold, and none of it can reach a family because the preview never leaves
+ * the phone.
+ */
+const DEMO_PRIVATE_NOTES = [
+  'Fades in the last fifteen. Try shorter shifts at the start of the week.',
+  'Plays a different game with the armband. Worth trying it in a friendly first.',
+  'Late on Wednesdays. Speak to the family before it becomes a thing.',
+];
+
+const previewPrivateNotes = new Map<string, string>();
+
+export const previewPrivateNote = (playerId: string): string => {
+  const saved = previewPrivateNotes.get(playerId);
+  if (saved !== undefined) return saved;
+  const index = Math.max(0, DEMO_PLAYERS.findIndex(entry => entry.id === playerId));
+  return DEMO_PRIVATE_NOTES[index % DEMO_PRIVATE_NOTES.length] ?? '';
+};
+
+export const savePreviewPrivateNote = (playerId: string, note: string): void => {
+  previewPrivateNotes.set(playerId, note);
+};
+
+/**
  * Four completed matches and one in progress. The unfinished one is deliberate: it proves the
  * percentage ignores a clock that is still running.
  */

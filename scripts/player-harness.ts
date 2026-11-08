@@ -73,10 +73,19 @@ import {
   demoAttendanceSeason,
   demoMatchLog,
   previewAssessment,
+  previewPrivateNote,
   previewSharedPlayer,
   previewShareCode,
   savePreviewAssessment,
+  savePreviewPrivateNote,
 } from '../src/features/shared/demo';
+import {
+  PRIVATE_NOTE_MAX,
+  clampPrivateNote,
+  isMissingPrivateNotesTable,
+  parsePrivateNoteRow,
+  privateNotePayload,
+} from '../src/features/coach/player/privateNotes';
 import {
   buildPlayerReportPdf,
   playerReportFileName,
@@ -484,6 +493,75 @@ async function main(): Promise<void> {
     parsedLineup.rows.length === 1 && parsedLineup.rows[0]?.recorded_seconds === 900 && parsedLineup.dropped === 1,
     parsedLineup,
   );
+
+  // --- 5b. the note only staff can read -----------------------------------------------------
+
+  const noteRow = {
+    player_id: 'p1',
+    team_id: 'team-1',
+    note: '  Speaks best when given the armband.  ',
+    updated_at: '2026-11-02T18:40:00.000Z',
+    updated_by: 'coach-1',
+  };
+  const parsedNote = parsePrivateNoteRow(noteRow);
+  assert('a note row reads with the text trimmed', parsedNote?.note === 'Speaks best when given the armband.', parsedNote);
+  assert(
+    'a note row carries the child and the server stamp',
+    parsedNote?.playerId === 'p1' && parsedNote?.updatedAt === '2026-11-02T18:40:00.000Z',
+    parsedNote,
+  );
+  assert('a row for nobody is dropped', parsePrivateNoteRow({ note: 'x' }) === null);
+  assert('nothing that is not a row is guessed at', [null, undefined, 'nonsense', 7, []].every(value => parsePrivateNoteRow(value) === null));
+  assert('a blank note reads as nothing written', parsePrivateNoteRow({ ...noteRow, note: '   ' })?.note === '');
+  assert('a missing note column reads as nothing written', parsePrivateNoteRow({ player_id: 'p1' })?.note === '');
+  assert('an unreadable stamp does not hide the text', parsePrivateNoteRow({ ...noteRow, updated_at: 'yesterday' })?.updatedAt === null);
+  assert(
+    'a note longer than the column is clipped, not dropped',
+    parsePrivateNoteRow({ ...noteRow, note: 'k'.repeat(PRIVATE_NOTE_MAX + 500) })?.note.length === PRIVATE_NOTE_MAX,
+  );
+
+  const oversizedNote = `  ${'m'.repeat(PRIVATE_NOTE_MAX + 40)}  `;
+  const notePayload = privateNotePayload('p1', 'team-1', oversizedNote);
+  assert(
+    'the write names the child, the squad and the note, and nothing else',
+    notePayload.player_id === 'p1' && notePayload.team_id === 'team-1' && Object.keys(notePayload).length === 3,
+    notePayload,
+  );
+  assert(
+    'the write never claims a server-owned column',
+    !('id' in notePayload) && !('created_at' in notePayload) && !('updated_at' in notePayload) && !('updated_by' in notePayload),
+    notePayload,
+  );
+  assert(
+    'the payload clamps to the length the CHECK allows',
+    typeof notePayload.note === 'string' && notePayload.note.length === PRIVATE_NOTE_MAX,
+    notePayload.note,
+  );
+  assert('clearing a note writes an empty string, never null', privateNotePayload('p1', 'team-1', '   ').note === '');
+  assert('the editor clamp agrees with the database', clampPrivateNote(oversizedNote).length === PRIVATE_NOTE_MAX);
+
+  assert(
+    'PostgREST not knowing the table is read as a migration that has not landed',
+    isMissingPrivateNotesTable({ code: 'PGRST205', message: "Could not find the 'player_private_notes' table in the schema cache" }),
+  );
+  assert(
+    'raw SQL naming a missing relation is read the same way',
+    isMissingPrivateNotesTable({ code: '42P01', message: 'relation "public.player_private_notes" does not exist' }),
+  );
+  assert('a dead connection is not reported as a missing table', !isMissingPrivateNotesTable({ code: '', message: 'Failed to fetch' }));
+  assert(
+    'a policy refusal is not reported as a missing table',
+    !isMissingPrivateNotesTable({ code: '42501', message: 'new row violates row-level security policy for table "player_private_notes"' }),
+  );
+
+  const previewChild = DEMO_PLAYERS[1];
+  assert('the preview squad has a staff note to read', typeof previewChild !== 'undefined' && previewPrivateNote(previewChild.id).length > 0);
+  if (previewChild) {
+    savePreviewPrivateNote(previewChild.id, 'Moved to the back four.');
+    assert('a preview note survives the profile closing', previewPrivateNote(previewChild.id) === 'Moved to the back four.');
+    savePreviewPrivateNote(previewChild.id, '');
+    assert('a preview note can be cleared', previewPrivateNote(previewChild.id) === '');
+  }
 
   // --- 6. the one-page player report PDF ------------------------------------------------
   //
