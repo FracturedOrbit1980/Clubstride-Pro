@@ -57,7 +57,11 @@ export const TabBar: React.FC<{
           aria-selected={selected}
           accessibilityLabel={tab.label}
         >
-          <Text style={[styles.label, selected && styles.labelOn]}>{tab.label}</Text>
+          {/* One word per tab, so it cannot wrap: without a ceiling, the largest Android font
+              setting pushes the last tab off the screen. Content text is not capped. */}
+          <Text style={[styles.label, selected && styles.labelOn]} maxFontSizeMultiplier={1.3}>
+            {tab.label}
+          </Text>
         </Pressable>
       );
     })}

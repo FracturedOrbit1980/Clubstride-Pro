@@ -194,7 +194,7 @@ export const LiteWeekScreen: React.FC<{
 
 const styles = {
   screen: { padding: 16, gap: 12, backgroundColor: ci.color.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 },
   headerAction: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   headerActionLabel: { color: ci.color.text, fontSize: 13, fontWeight: '700' },
   title: { color: ci.color.text, fontSize: 22, fontWeight: '800' },

@@ -372,12 +372,14 @@ const styles = {
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headAction: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.accent, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   headActionLabel: { color: ci.color.onAccent, fontSize: 13, fontWeight: '800' },
-  drillRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: ci.radius.control, backgroundColor: ci.color.background },
-  drillText: { flex: 1, gap: 2 },
+  // Open and Copy keep their full width, so at 200% browser zoom the name takes the line and the
+  // two buttons drop below it rather than being pushed off the screen.
+  drillRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: 10, borderRadius: ci.radius.control, backgroundColor: ci.color.background },
+  drillText: { flex: 1, minWidth: 0, gap: 2 },
   drillName: { color: ci.color.text, fontSize: 15, fontWeight: '700' },
-  drillRun: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.go, minHeight: 44, minWidth: 44, justifyContent: 'center' },
+  drillRun: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.go, minHeight: 44, minWidth: 44, justifyContent: 'center', flexShrink: 0 },
   drillRunLabel: { color: ci.color.onGo, fontSize: 13, fontWeight: '800' },
-  drillEdit: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, minHeight: 44, minWidth: 44, justifyContent: 'center' },
+  drillEdit: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, minHeight: 44, minWidth: 44, justifyContent: 'center', flexShrink: 0 },
   drillEditLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '700' },
   label: { color: ci.color.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
   meta: { color: ci.color.muted, fontSize: 13, lineHeight: 19 },

@@ -15,14 +15,16 @@ export const BrandLockup: React.FC<Props> = ({ size = 30, onPress, accessibility
   const content = (
     <>
       <Image source={SYMBOL} style={{ width: size, height: size }} resizeMode="contain" />
-      <Text style={[styles.wordmark, { fontSize: size * 0.74 }]}>Clubstride</Text>
+      {/* The lockup is app chrome beside a control, so it shares the dock's ceiling: uncapped, the
+          largest Android font setting pushes whatever sits to its right off the screen. */}
+      <Text style={[styles.wordmark, { fontSize: size * 0.74 }]} maxFontSizeMultiplier={1.3}>Clubstride</Text>
       <View
         style={[
           styles.pill,
           { paddingHorizontal: size * 0.26, paddingVertical: size * 0.05, marginLeft: size * 0.04 },
         ]}
       >
-        <Text style={[styles.pillLabel, { fontSize: size * 0.33 }]}>PRO</Text>
+        <Text style={[styles.pillLabel, { fontSize: size * 0.33 }]} maxFontSizeMultiplier={1.3}>PRO</Text>
       </View>
     </>
   );
