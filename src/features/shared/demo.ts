@@ -1,4 +1,5 @@
 import type { Membership } from '../../core/context/AuthContext';
+import type { ClubAdult, GuardianLink } from '../admin/clubRecords';
 import type { AttendanceMap, AttendanceRow, AttendanceStatus } from '../coach/attendance/attendance';
 import { indexAttendance } from '../coach/attendance/attendance';
 import type { SquadPlayerRow } from '../coach/attendance/squad';
@@ -287,3 +288,73 @@ export const previewSharedPlayer = (code: string): SquadPlayerRow | null => {
   const index = Number(match[1]) - PREVIEW_CODE_BASE;
   return DEMO_PLAYERS[index] ?? null;
 };
+
+/**
+ * The club's own records for the preview: who holds a seat on the squad and which family account
+ * reaches which child. Every name is invented and every address sits on example.com, the domain
+ * reserved for documentation, so nothing here can point at a real family. Six of the ten children
+ * are linked and one link has no visible account, because that is the state a real club's records
+ * are usually in - the administrator's list has to show both.
+ */
+const EXAMPLE_DOMAIN = 'example.com';
+
+export const DEMO_ADULTS: ClubAdult[] = [
+  { userId: 'preview-adult-manager', role: 'manager', account: { name: 'Rhian Naidoo', email: `r••••@${EXAMPLE_DOMAIN}` } },
+  { userId: 'preview-adult-coach-alegria', role: 'coach', account: { name: 'Alegria Santos', email: `a••••@${EXAMPLE_DOMAIN}` } },
+  { userId: 'preview-adult-coach-berg', role: 'coach', account: { name: 'Tomas Berg', email: `t••••@${EXAMPLE_DOMAIN}` } },
+  { userId: 'preview-adult-parent-rossi', role: 'parent', account: { name: 'Elena Rossi', email: `e••••@${EXAMPLE_DOMAIN}` } },
+  { userId: 'preview-adult-parent-lindqvist', role: 'parent', account: { name: 'Jonas Lindqvist', email: `j••••@${EXAMPLE_DOMAIN}` } },
+];
+
+export const DEMO_LINKS: GuardianLink[] = [
+  {
+    id: 'preview-link-1',
+    playerId: 'preview-player-1',
+    userId: 'preview-adult-parent-rossi',
+    relationship: 'Mother',
+    createdAt: '2026-10-12T09:30:00.000Z',
+    account: { name: 'Elena Rossi', email: `e••••@${EXAMPLE_DOMAIN}` },
+  },
+  {
+    id: 'preview-link-2',
+    playerId: 'preview-player-2',
+    userId: 'preview-adult-parent-lindqvist',
+    relationship: 'Father',
+    createdAt: '2026-10-18T15:10:00.000Z',
+    account: { name: 'Jonas Lindqvist', email: `j••••@${EXAMPLE_DOMAIN}` },
+  },
+  {
+    id: 'preview-link-3',
+    playerId: 'preview-player-3',
+    userId: 'preview-adult-parent-vance',
+    relationship: 'Guardian',
+    createdAt: '2026-09-30T11:00:00.000Z',
+    // No account to show: this adult holds no seat on the squad, so the club's read policy keeps
+    // their name and address out of every list. The link exists; who it reaches cannot be seen.
+    account: null,
+  },
+  {
+    id: 'preview-link-4',
+    playerId: 'preview-player-5',
+    userId: 'preview-adult-parent-diaz',
+    relationship: 'Mother',
+    createdAt: '2026-10-21T08:45:00.000Z',
+    account: { name: 'Priya Diaz', email: `p••••@${EXAMPLE_DOMAIN}` },
+  },
+  {
+    id: 'preview-link-5',
+    playerId: 'preview-player-7',
+    userId: 'preview-adult-parent-sinclair',
+    relationship: null,
+    createdAt: '2026-10-02T17:20:00.000Z',
+    account: { name: 'Marco Sinclair', email: `m••••@${EXAMPLE_DOMAIN}` },
+  },
+  {
+    id: 'preview-link-6',
+    playerId: 'preview-player-10',
+    userId: 'preview-adult-parent-chen',
+    relationship: 'Father',
+    createdAt: '2026-10-25T07:55:00.000Z',
+    account: { name: 'Wei Chen', email: `w••••@${EXAMPLE_DOMAIN}` },
+  },
+];

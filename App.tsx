@@ -20,7 +20,8 @@ import { SignInScreen } from './src/features/shared/screens/SignInScreen';
 import { SignUpScreen } from './src/features/shared/screens/SignUpScreen';
 import { SyncStatusBanner } from './src/features/shared/components/SyncStatusBanner';
 import { BrandLockup } from './src/features/shared/components/BrandLockup';
-import { COACH_TABS, PARENT_TABS, TabBar, type ProTab } from './src/features/shared/components/TabBar';
+import { COACH_TABS, MANAGER_TABS, PARENT_TABS, TabBar, type ProTab } from './src/features/shared/components/TabBar';
+import { ClubAdminScreen } from './src/features/admin/screens/ClubAdminScreen';
 import { ci } from './src/features/shared/ci';
 import { ClubRosterProvider, useClubRoster } from './src/features/shared/ClubRosterProvider';
 
@@ -70,6 +71,8 @@ const Root: React.FC = () => {
   // A parent is not a junior coach: the squad list, the register and training are coaching
   // controls, and `local` keeps a read-only device squad out of this branch.
   const isParent = membership?.role === 'parent' && !local;
+  // The club page belongs to the seat that assigns the others, so a coach keeps the three-tab dock.
+  const isManager = membership?.role === 'manager' && !local;
   const homeView: ProTab = isParent ? 'family' : 'squad';
 
   useEffect(() => {
@@ -246,6 +249,7 @@ const Root: React.FC = () => {
                 {view === 'squad' ? <SquadScreen key={rosterScope} onOpenPlayer={openPlayer} /> : null}
                 {view === 'register' ? <AttendanceScreen key={rosterScope} onOpenSetup={() => setView('training')} /> : null}
                 {view === 'training' ? <SetupScreen key={rosterScope} onOpenAttendance={() => setView('register')} /> : null}
+                {view === 'club' ? <ClubAdminScreen key={rosterScope} onOpenPlayer={openPlayer} /> : null}
               </>
             )}
             {view === 'player' && selectedPlayer ? (
@@ -267,7 +271,11 @@ const Root: React.FC = () => {
               />
             ) : null}
           </View>
-          <TabBar active={activeTab} tabs={isParent ? PARENT_TABS : COACH_TABS} onChange={setView} />
+          <TabBar
+            active={activeTab}
+            tabs={isParent ? PARENT_TABS : isManager ? MANAGER_TABS : COACH_TABS}
+            onChange={setView}
+          />
         </>
       ) : null}
     </View>

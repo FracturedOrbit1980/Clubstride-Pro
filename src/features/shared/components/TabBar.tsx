@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { ci } from '../ci';
 
-export type ProTab = 'squad' | 'register' | 'training' | 'family' | 'settings';
+export type ProTab = 'squad' | 'register' | 'training' | 'club' | 'family' | 'settings';
 
 export interface TabOption {
   key: ProTab;
@@ -14,6 +14,18 @@ export const COACH_TABS: readonly TabOption[] = [
   { key: 'squad', label: 'Squad' },
   { key: 'register', label: 'Register' },
   { key: 'training', label: 'Training' },
+  { key: 'settings', label: 'Settings' },
+];
+
+/**
+ * A manager coaches too, so the Club page joins the coach dock instead of replacing it. It is the
+ * only place a squad's family links and seats are readable, and it writes nothing.
+ */
+export const MANAGER_TABS: readonly TabOption[] = [
+  { key: 'squad', label: 'Squad' },
+  { key: 'register', label: 'Register' },
+  { key: 'training', label: 'Training' },
+  { key: 'club', label: 'Club' },
   { key: 'settings', label: 'Settings' },
 ];
 
