@@ -114,7 +114,7 @@ export const LiteWeekScreen: React.FC<{
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <View style={styles.header}>
-        <BrandLockup size={24} onPress={onSwitchToPro} accessibilityLabel="Switch to Clubstride Pro" />
+        <BrandLockup size={24} tier="lite" onPress={onSwitchToPro} accessibilityLabel="Switch to Clubstride Pro" />
         <Pressable style={styles.headerAction} onPress={onOpenSettings}>
           <Text style={styles.headerActionLabel}>Settings</Text>
         </Pressable>

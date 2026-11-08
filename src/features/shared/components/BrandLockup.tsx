@@ -3,16 +3,32 @@ import { Image, Pressable, Text, View } from 'react-native';
 import { ci } from '../ci';
 
 const SYMBOL = require('../../../../assets/brand/l1-symbol.png');
+const LITE_LOCKUP = require('../../../../assets/brand/l1-lite-lockup.png');
+/** The approved Lite lockup art is 2088 x 384, so its width follows from the height asked for. */
+const LITE_RATIO = 2088 / 384;
 
 type Props = {
   size?: number;
   onPress?: () => void;
   accessibilityLabel?: string;
+  /**
+   * Which product the screen is showing. Lite carries its own approved lockup - the wordmark and
+   * the LITE pill are drawn in that art, so it is never rebuilt from text and never reads
+   * "Clubstride PRO" while the base app is on screen.
+   */
+  tier?: 'pro' | 'lite';
 };
 
-/** The L1 lockup: CI symbol, Clubstride wordmark and the tilted PRO pill. */
-export const BrandLockup: React.FC<Props> = ({ size = 30, onPress, accessibilityLabel }) => {
-  const content = (
+/** The L1 lockup: CI symbol, Clubstride wordmark and the tilted PRO pill, or the Lite art. */
+export const BrandLockup: React.FC<Props> = ({ size = 30, onPress, accessibilityLabel, tier = 'pro' }) => {
+  const content = tier === 'lite' ? (
+    <Image
+      source={LITE_LOCKUP}
+      style={{ width: size * LITE_RATIO, height: size }}
+      resizeMode="contain"
+      accessibilityLabel="Clubstride Lite"
+    />
+  ) : (
     <>
       <Image source={SYMBOL} style={{ width: size, height: size }} resizeMode="contain" />
       {/* The lockup is app chrome beside a control, so it shares the dock's ceiling: uncapped, the
@@ -31,7 +47,11 @@ export const BrandLockup: React.FC<Props> = ({ size = 30, onPress, accessibility
 
   if (!onPress) {
     return (
-      <View accessibilityRole="image" accessibilityLabel="Clubstride Pro" style={[styles.row, { gap: size * 0.3 }]}>
+      <View
+        accessibilityRole="image"
+        accessibilityLabel={tier === 'lite' ? 'Clubstride Lite' : 'Clubstride Pro'}
+        style={[styles.row, { gap: size * 0.3 }]}
+      >
         {content}
       </View>
     );

@@ -94,7 +94,7 @@ export const SettingsScreen: React.FC<{
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       {mode === 'lite' ? (
-        <BrandLockup size={28} onPress={() => void applyMode('pro')} accessibilityLabel="Switch to Pro view" />
+        <BrandLockup size={28} tier="lite" onPress={() => void applyMode('pro')} accessibilityLabel="Switch to Pro view" />
       ) : null}
       <Text style={styles.title}>Settings</Text>
 
