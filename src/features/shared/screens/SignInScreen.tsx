@@ -9,15 +9,17 @@ import {
   SecondaryButton,
   authStyles,
 } from '../components/AuthUi';
+import type { AppMode } from '../appMode';
 
 interface SignInScreenProps {
   onCreateAccount: () => void;
   onForgotPassword: () => void;
   /** Only passed while signed out, so the preview can be returned to without an account. */
   onBack?: () => void;
+  tier?: AppMode | undefined;
 }
 
-export const SignInScreen: React.FC<SignInScreenProps> = ({ onCreateAccount, onForgotPassword, onBack }) => {
+export const SignInScreen: React.FC<SignInScreenProps> = ({ onCreateAccount, onForgotPassword, onBack, tier }) => {
   const { signIn, signInWithGoogle, googleAvailable, linkError, clearLinkError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -52,7 +54,7 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onCreateAccount, onF
   const shownError = error ?? linkError;
 
   return (
-    <AuthScreen>
+    <AuthScreen tier={tier}>
       <Text style={authStyles.title}>Sign in</Text>
       <Text style={authStyles.subtitle}>Sync your squads, fixtures and attendance.</Text>
 

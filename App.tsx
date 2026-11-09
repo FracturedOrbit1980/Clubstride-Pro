@@ -158,7 +158,7 @@ const Root: React.FC = () => {
 
   // A recovery link outranks every other screen: the exchange signs the user in, so waiting
   // for status would flash Settings before asking for the new password.
-  if (recovery.active) return <ResetPasswordScreen />;
+  if (recovery.active) return <ResetPasswordScreen tier={mode} />;
 
   if (status === 'loading' || !modeReady) {
     return (
@@ -172,7 +172,7 @@ const Root: React.FC = () => {
     return (
       <View style={styles.screen}>
         <StatusBar style="light" />
-        <SharedProfileScreen code={sharedCode} onClose={closeShared} onOpenCode={openSharedCode} />
+        <SharedProfileScreen code={sharedCode} tier={mode} onClose={closeShared} onOpenCode={openSharedCode} />
       </View>
     );
   }
@@ -182,10 +182,11 @@ const Root: React.FC = () => {
       setShowAuth(false);
       setAuthView('signIn');
     };
-    if (authView === 'signUp') return <SignUpScreen onBack={() => setAuthView('signIn')} />;
-    if (authView === 'forgot') return <ForgotPasswordScreen onBack={() => setAuthView('signIn')} />;
+    if (authView === 'signUp') return <SignUpScreen tier={mode} onBack={() => setAuthView('signIn')} />;
+    if (authView === 'forgot') return <ForgotPasswordScreen tier={mode} onBack={() => setAuthView('signIn')} />;
     return (
       <SignInScreen
+        tier={mode}
         onCreateAccount={() => setAuthView('signUp')}
         onForgotPassword={() => setAuthView('forgot')}
         onBack={back}

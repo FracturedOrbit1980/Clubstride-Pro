@@ -3,8 +3,9 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import { useAuth } from '../../../core/context/AuthContext';
 import { AuthField, AuthScreen, LinkButton, PrimaryButton, authStyles } from '../components/AuthUi';
 import { ci } from '../ci';
+import type { AppMode } from '../appMode';
 
-export const ResetPasswordScreen: React.FC = () => {
+export const ResetPasswordScreen: React.FC<{ tier?: AppMode | undefined }> = ({ tier }) => {
   const { recovery, clearRecovery, updatePassword, session } = useAuth();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -35,7 +36,7 @@ export const ResetPasswordScreen: React.FC = () => {
 
   if (recovery.checking) {
     return (
-      <AuthScreen>
+      <AuthScreen tier={tier}>
         <View style={authStyles.center}>
           <ActivityIndicator color={ci.color.primary} />
           <Text style={authStyles.muted}>Checking your reset link...</Text>
@@ -46,7 +47,7 @@ export const ResetPasswordScreen: React.FC = () => {
 
   if (recovery.error) {
     return (
-      <AuthScreen>
+      <AuthScreen tier={tier}>
         <Text style={authStyles.cardTitle}>Reset link problem</Text>
         <Text style={authStyles.error}>{recovery.error}</Text>
         <PrimaryButton
@@ -64,7 +65,7 @@ export const ResetPasswordScreen: React.FC = () => {
 
   if (done) {
     return (
-      <AuthScreen>
+      <AuthScreen tier={tier}>
         <Text style={authStyles.cardTitle}>Password updated</Text>
         <Text style={authStyles.success}>Your new password is saved and you are signed in.</Text>
         <Text style={authStyles.muted}>Use it the next time you sign in on another device.</Text>
@@ -74,7 +75,7 @@ export const ResetPasswordScreen: React.FC = () => {
   }
 
   return (
-    <AuthScreen>
+    <AuthScreen tier={tier}>
       <Text style={authStyles.title}>Choose a new password</Text>
       <Text style={authStyles.subtitle}>
         {session?.user.email ? `Resetting the password for ${session.user.email}.` : 'Enter a new password for your account.'}

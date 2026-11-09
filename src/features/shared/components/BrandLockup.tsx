@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { ci } from '../ci';
 
 const SYMBOL = require('../../../../assets/brand/l1-symbol.png');
@@ -16,15 +16,20 @@ type Props = {
    * the LITE pill are drawn in that art, so it is never rebuilt from text and never reads
    * "Clubstride PRO" while the base app is on screen.
    */
-  tier?: 'pro' | 'lite';
+  tier?: 'pro' | 'lite' | undefined;
 };
 
 /** The L1 lockup: CI symbol, Clubstride wordmark and the tilted PRO pill, or the Lite art. */
 export const BrandLockup: React.FC<Props> = ({ size = 30, onPress, accessibilityLabel, tier = 'pro' }) => {
+  const { width: screenWidth } = useWindowDimensions();
+  // react-native-web shrinks the box around this image but not the image itself, so the art is
+  // sized against the screen here instead: at 200% zoom on a small phone an uncapped lockup would
+  // run off the edge and cut the LITE pill. The height follows the art's own ratio.
+  const liteWidth = Math.min(size * LITE_RATIO, screenWidth - 48);
   const content = tier === 'lite' ? (
     <Image
       source={LITE_LOCKUP}
-      style={{ width: size * LITE_RATIO, height: size }}
+      style={{ width: liteWidth, height: liteWidth / LITE_RATIO }}
       resizeMode="contain"
       accessibilityLabel="Clubstride Lite"
     />

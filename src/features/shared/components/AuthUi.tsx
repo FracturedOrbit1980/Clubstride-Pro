@@ -12,9 +12,11 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ci } from '../ci';
+import type { AppMode } from '../appMode';
 import { BrandLockup } from './BrandLockup';
 
-export const AuthScreen: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+/** Signing in is one door for both products, so it wears the identity this device is set to. */
+export const AuthScreen: React.FC<{ children: React.ReactNode; tier?: AppMode | undefined }> = ({ children, tier = 'pro' }) => (
   <KeyboardAvoidingView style={authStyles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar style="light" />
     <ScrollView
@@ -22,7 +24,7 @@ export const AuthScreen: React.FC<{ children: React.ReactNode }> = ({ children }
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
     >
-      <BrandLockup size={32} />
+      <BrandLockup size={32} tier={tier} />
       {children}
     </ScrollView>
   </KeyboardAvoidingView>
