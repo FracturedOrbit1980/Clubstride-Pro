@@ -12,9 +12,11 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ci } from '../ci';
+import type { AppMode } from '../appMode';
 import { BrandLockup } from './BrandLockup';
 
-export const AuthScreen: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+/** Signing in is one door for both products, so it wears the identity this device is set to. */
+export const AuthScreen: React.FC<{ children: React.ReactNode; tier?: AppMode | undefined }> = ({ children, tier = 'pro' }) => (
   <KeyboardAvoidingView style={authStyles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <StatusBar style="light" />
     <ScrollView
@@ -22,7 +24,7 @@ export const AuthScreen: React.FC<{ children: React.ReactNode }> = ({ children }
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="automatic"
     >
-      <BrandLockup size={32} />
+      <BrandLockup size={32} tier={tier} />
       {children}
     </ScrollView>
   </KeyboardAvoidingView>
@@ -56,7 +58,8 @@ export const PrimaryButton: React.FC<ButtonProps> = ({ label, onPress, busy = fa
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: blocked, busy }}
+      aria-disabled={blocked}
+      aria-busy={busy}
       disabled={blocked}
       onPress={onPress}
       style={({ pressed }) => [
@@ -76,7 +79,8 @@ export const SecondaryButton: React.FC<ButtonProps> = ({ label, onPress, busy = 
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: blocked, busy }}
+      aria-disabled={blocked}
+      aria-busy={busy}
       disabled={blocked}
       onPress={onPress}
       style={({ pressed }) => [
@@ -100,7 +104,7 @@ export const SecondaryButton: React.FC<ButtonProps> = ({ label, onPress, busy = 
 };
 
 export const LinkButton: React.FC<{ label: string; onPress: () => void }> = ({ label, onPress }) => (
-  <Pressable accessibilityRole="button" onPress={onPress} hitSlop={8}>
+  <Pressable accessibilityRole="button" onPress={onPress} hitSlop={8} style={authStyles.linkTap}>
     <Text style={authStyles.link}>{label}</Text>
   </Pressable>
 );
@@ -176,10 +180,12 @@ export const authStyles = {
   divider: { flex: 1, height: 1, backgroundColor: ci.color.border },
   dividerText: { color: ci.color.muted, fontSize: 12, fontWeight: '700' },
   linkRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 4 },
+  // react-native-web drops hitSlop, so the underline itself has to carry the target.
+  linkTap: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   link: { color: ci.color.primary, fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
   card: { padding: 16, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 10 },
   cardTitle: { color: ci.color.text, fontSize: 18, fontWeight: '800' },
-  back: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
+  back: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   backLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '700' },
   center: { alignItems: 'center', gap: 10, paddingVertical: 20 },
 } as const;

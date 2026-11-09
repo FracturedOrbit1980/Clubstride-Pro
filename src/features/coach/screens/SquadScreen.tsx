@@ -49,7 +49,7 @@ export const SquadScreen: React.FC<{ onOpenPlayer: (player: SquadPlayerRow) => v
           <Text style={styles.meta}>The same squad in Lite and Pro. Pro adds coaching tools.</Text>
           {teams.length > 1 ? teams.map(team => (
             <Pressable key={team.id} style={styles.action} onPress={() => selectTeam(team.id)} accessibilityRole="button"
-              accessibilityState={{ selected: selectedTeam === team.id }}>
+              accessibilityLabel={`${selectedTeam === team.id ? 'Selected: ' : 'Use team: '}${team.name}`}>
               <Text style={styles.actionLabel}>{selectedTeam === team.id ? 'Selected: ' : 'Use team: '}{team.name}</Text>
             </Pressable>
           )) : null}
@@ -64,7 +64,7 @@ export const SquadScreen: React.FC<{ onOpenPlayer: (player: SquadPlayerRow) => v
           <TextInput style={styles.input} value={number} onChangeText={setNumber} keyboardType="number-pad" placeholder="Shirt number" placeholderTextColor={ci.color.muted} accessibilityLabel="Shirt number" />
           <View style={styles.row}>
             {['Goalkeeper', 'Defender', 'Midfielder', 'Forward'].map(value => (
-              <Pressable key={value} style={styles.action} onPress={() => setPosition(value)} accessibilityRole="button" accessibilityState={{ selected: position === value }}>
+              <Pressable key={value} style={styles.action} onPress={() => setPosition(value)} accessibilityRole="button" accessibilityLabel={`${value}${position === value ? ', selected' : ''}`}>
                 <Text style={styles.actionLabel}>{position === value ? '• ' : ''}{value}</Text>
               </Pressable>
             ))}
@@ -113,7 +113,7 @@ const styles = {
   teamName: { color: ci.color.text, fontSize: 17, fontWeight: '800' },
   meta: { color: ci.color.muted, fontSize: 13 },
   error: { color: ci.color.danger, fontSize: 13 },
-  action: { marginTop: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start' },
+  action: { marginTop: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, alignSelf: 'flex-start', minHeight: 44, minWidth: 44, justifyContent: 'center' },
   actionLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   input: { borderWidth: 1, borderColor: ci.color.border, borderRadius: ci.radius.chip, color: ci.color.text, padding: 10, marginTop: 8 },

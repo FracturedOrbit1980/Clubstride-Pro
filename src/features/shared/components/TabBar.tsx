@@ -57,7 +57,11 @@ export const TabBar: React.FC<{
           aria-selected={selected}
           accessibilityLabel={tab.label}
         >
-          <Text style={[styles.label, selected && styles.labelOn]}>{tab.label}</Text>
+          {/* One word per tab, so it cannot wrap: without a ceiling, the largest Android font
+              setting pushes the last tab off the screen. Content text is not capped. */}
+          <Text style={[styles.label, selected && styles.labelOn]} maxFontSizeMultiplier={1.3}>
+            {tab.label}
+          </Text>
         </Pressable>
       );
     })}
@@ -67,6 +71,9 @@ export const TabBar: React.FC<{
 const styles = {
   bar: {
     flexDirection: 'row',
+    // Four tabs cannot each be wide enough for their own word at 200% browser zoom on a 390 phone:
+    // past that point the row wraps to two lines instead of the labels running into each other.
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 12,
@@ -77,7 +84,10 @@ const styles = {
     borderTopColor: ci.color.border,
   },
   tab: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 'auto',
+    minWidth: 68,
     minHeight: 44,
     paddingVertical: 10,
     borderRadius: ci.radius.control,

@@ -57,6 +57,7 @@ import {
   type PlayerMatchEntry,
 } from '../player/minutes';
 import { RadarChart } from '../player/RadarChart';
+import { PrivateNoteCard } from '../components/PrivateNoteCard';
 import { buildPlayerReportPdf, playerReportFileName } from '../player/report';
 import {
   generateShareCode,
@@ -66,6 +67,7 @@ import {
 import { demoAttendanceSeason, demoMatchLog, previewAssessment, previewShareCode, savePreviewAssessment } from '../../shared/demo';
 import { useClubRoster } from '../../shared/ClubRosterProvider';
 import { ci } from '../../shared/ci';
+import { touchRows } from '../../shared/touchRows';
 import { savePdf } from '../../shared/pdfExport';
 
 type Phase = 'loading' | 'ready';
@@ -112,7 +114,8 @@ const attendanceForReport = async (
 
 /**
  * One player's report: game time summed from completed matches, the 17 ratings behind a
- * four-axis radar, the coach's note, and the code a family can open it with. Reads the cache
+ * four-axis radar, the note a family reads, the note only staff can read, and the code a family
+ * can open it with. Reads the cache
  * first, then the club, like the register; a rating saved here is queued before it is cached,
  * so it survives leaving the ground with no signal.
  */
@@ -712,22 +715,25 @@ export const PlayerProfileScreen: React.FC<{
                         <View style={[styles.metricFill, { width: fillWidth(value) }]} />
                       </View>
                       {canEdit ? (
-                        <View style={styles.scaleRow}>
-                          {RATING_OPTIONS.map(option => {
-                            const selected = value === option;
-                            return (
-                              <Pressable
-                                key={option}
-                                onPress={() => rate(metric.key, option)}
-                                accessibilityRole="button"
-                                accessibilityLabel={`${metric.label}: ${option}`}
-                                accessibilityState={{ selected }}
-                                style={[styles.scaleCell, selected && styles.scaleCellOn]}
-                              >
-                                <Text style={[styles.scaleLabel, selected && styles.scaleLabelOn]}>{option}</Text>
-                              </Pressable>
-                            );
-                          })}
+                        <View style={styles.scaleRows}>
+                          {touchRows(RATING_OPTIONS, 5).map(row => (
+                            <View key={row[0]!} style={styles.scaleRow}>
+                              {row.map(option => {
+                                const selected = value === option;
+                                return (
+                                  <Pressable
+                                    key={option}
+                                    onPress={() => rate(metric.key, option)}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`${metric.label}: ${option}${selected ? ', selected' : ''}`}
+                                    style={[styles.scaleCell, selected && styles.scaleCellOn]}
+                                  >
+                                    <Text style={[styles.scaleLabel, selected && styles.scaleLabelOn]}>{option}</Text>
+                                  </Pressable>
+                                );
+                              })}
+                            </View>
+                          ))}
                         </View>
                       ) : null}
                     </View>
@@ -738,12 +744,13 @@ export const PlayerProfileScreen: React.FC<{
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Coach note</Text>
-            <Text style={styles.hint}>
-              Anyone holding the share link or the report PDF reads this note. There is no private-only field yet.
-            </Text>
+            <Text style={styles.cardTitle}>Feedback for the family</Text>
             {canEdit ? (
               <>
+                <Text style={styles.hint}>
+                  {player.full_name}'s family reads this on their page. Anyone holding the share link or the report
+                  PDF reads it too, so a note the family should not see does not belong in this field.
+                </Text>
                 <TextInput
                   value={notes}
                   onChangeText={text => {
@@ -783,10 +790,18 @@ export const PlayerProfileScreen: React.FC<{
               </>
             ) : (
               <Text style={notes ? styles.notesText : styles.hint}>
-                {notes || 'No coach note yet.'}
+                {notes || 'No feedback has been shared yet.'}
               </Text>
             )}
           </View>
+
+          {canEdit ? (
+            <PrivateNoteCard
+              playerId={player.id}
+              teamId={teamId}
+              access={installationId ? 'device' : preview ? 'preview' : 'club'}
+            />
+          ) : null}
 
           {canEdit && !installationId ? (
             <View style={styles.card}>
@@ -866,10 +881,12 @@ const styles = {
   back: { minHeight: 44, paddingVertical: 6, paddingRight: 10, justifyContent: 'center' },
   backLabel: { color: ci.color.primary, fontSize: 14, fontWeight: '800' },
   headerMeta: { color: ci.color.muted, fontSize: 12 },
-  playerHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  shirt: { width: 46, height: 46, borderRadius: 23, backgroundColor: ci.color.accent, alignItems: 'center', justifyContent: 'center' },
+  // The name is the widest thing here, so at 200% browser zoom it takes the row and the overall
+  // card drops below it, instead of the name breaking mid-word inside a sliver of a column.
+  playerHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
+  shirt: { width: 46, height: 46, borderRadius: 23, backgroundColor: ci.color.accent, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   shirtLabel: { color: ci.color.onAccent, fontSize: 17, fontWeight: '800' },
-  playerText: { flex: 1, gap: 2 },
+  playerText: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
   title: { color: ci.color.text, fontSize: 22, fontWeight: '800' },
   meta: { color: ci.color.muted, fontSize: 13, lineHeight: 19 },
   overall: {
@@ -880,18 +897,21 @@ const styles = {
     alignItems: 'center',
     borderWidth: 1,
     borderColor: ci.color.border,
+    flexShrink: 0,
   },
   overallValue: { color: ci.color.accent, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums' as const] },
   overallLabel: { color: ci.color.muted, fontSize: 10, fontWeight: '700' },
   warningCard: { padding: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.surface, gap: 8 },
   exportCard: { padding: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.surface, gap: 8 },
   exportButton: {
+    minHeight: 44,
     paddingVertical: 11,
     borderRadius: ci.radius.control,
     borderWidth: 1,
     borderColor: ci.color.primary,
     backgroundColor: ci.color.background,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   exportLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '800' },
   exportHint: { color: ci.color.muted, fontSize: 11, lineHeight: 16 },  error: { color: ci.color.danger, fontSize: 13, lineHeight: 19 },
@@ -950,6 +970,7 @@ const styles = {
   metricValue: { color: ci.color.muted, fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums' as const] },
   metricTrack: { height: 4, borderRadius: 2, backgroundColor: ci.color.background, overflow: 'hidden' },
   metricFill: { height: 4, borderRadius: 2, backgroundColor: ci.color.accent },
+  scaleRows: { gap: 4 },
   scaleRow: { flexDirection: 'row', gap: 3 },
   scaleCell: {
     flex: 1,
@@ -976,10 +997,10 @@ const styles = {
     textAlignVertical: 'top',
   },
   notesText: { color: ci.color.text, fontSize: 13, lineHeight: 19 },
-  primary: { paddingVertical: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.accent, alignItems: 'center' },
+  primary: { minHeight: 44, paddingVertical: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.accent, alignItems: 'center', justifyContent: 'center' },
   primaryOff: { opacity: 0.5 },
   primaryLabel: { color: ci.color.onAccent, fontSize: 14, fontWeight: '800' },
-  secondary: { paddingVertical: 11, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center' },
+  secondary: { minHeight: 44, paddingVertical: 11, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center', justifyContent: 'center' },
   secondaryLabel: { color: ci.color.text, fontSize: 13, fontWeight: '700' },
   buttonRow: { flexDirection: 'row', gap: 8 },
   flexButton: { flex: 1 },

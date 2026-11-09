@@ -25,8 +25,10 @@ export const RadarChart: React.FC<{
   labels: readonly string[];
 }> = ({ values, labels }) => {
   const { width } = useWindowDimensions();
-  // Screen padding (16 each side) plus the card's (14 each side).
-  const widthOnScreen = Math.max(220, Math.min(VIEW, width - 60));
+  // Screen padding (16 each side) plus the card's (14 each side). No floor: at 200% browser zoom
+  // a 390 phone shows 195 CSS pixels, and a 220 minimum pushed the drawing off the edge. The
+  // ratings list under it carries the same numbers, so the shape may shrink right down.
+  const widthOnScreen = Math.max(0, Math.min(VIEW, width - 60));
   const count = labels.length;
   const { points, unrated } = radarGeometry(values, RADIUS, CENTER);
   const rated = points.filter((point): point is RadarPoint => point !== null);

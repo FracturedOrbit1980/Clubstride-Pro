@@ -103,7 +103,7 @@ export const DrillTimerScreen: React.FC<{ drill: Drill; onBack: () => void }> = 
           disabled={done}
           accessibilityRole="button"
           accessibilityLabel={running ? `Pause ${drill.name}` : `Start ${drill.name}`}
-          accessibilityState={{ disabled: done }}
+          aria-disabled={done}
         >
           <Text style={[styles.primaryLabel, done && styles.primaryLabelDone]}>
             {running ? 'Pause' : done ? 'Time' : 'Start'}
@@ -151,7 +151,7 @@ export const DrillTimerScreen: React.FC<{ drill: Drill; onBack: () => void }> = 
 const styles = {
   screen: { padding: 16, gap: 14, backgroundColor: ci.color.background, flexGrow: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
+  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   backLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '700' },
   headerText: { flex: 1, gap: 2 },
   title: { color: ci.color.text, fontSize: 22, fontWeight: '800' },
@@ -175,7 +175,7 @@ const styles = {
   primaryLabel: { color: ci.color.onGo, fontSize: 20, fontWeight: '800' },
   primaryLabelDone: { color: ci.color.disabledText },
   secondaryRow: { flexDirection: 'row', gap: 10 },
-  secondary: { flex: 1, paddingVertical: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center' },
+  secondary: { flex: 1, paddingVertical: 10, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center', minHeight: 44, minWidth: 44, justifyContent: 'center' },
   secondaryLabel: { color: ci.color.text, fontSize: 15, fontWeight: '700' },
   card: { padding: 14, borderRadius: ci.radius.card, backgroundColor: ci.color.surface, gap: 6 },
   label: { color: ci.color.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },

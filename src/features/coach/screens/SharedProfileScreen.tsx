@@ -10,6 +10,7 @@ import { parseSharedProfile, type SharedProfile } from '../player/sharedProfile'
 import { isShareCode, normaliseShareCode } from '../player/shareCode';
 import { DEMO_MEMBERSHIP, demoMatchLog, previewAssessment, previewSharedPlayer } from '../../shared/demo';
 import { BrandLockup } from '../../shared/components/BrandLockup';
+import type { AppMode } from '../../shared/appMode';
 import { ci } from '../../shared/ci';
 
 type Phase = 'loading' | 'ready' | 'missing' | 'error';
@@ -53,7 +54,9 @@ export const SharedProfileScreen: React.FC<{
   code: string;
   onClose?: (() => void) | undefined;
   onOpenCode?: ((code: string) => void) | undefined;
-}> = ({ code, onClose, onOpenCode }) => {
+  /** Whichever product this device is set to; a visitor with no stored preference gets Pro. */
+  tier?: AppMode | undefined;
+}> = ({ code, onClose, onOpenCode, tier }) => {
   const { preview } = useAuth();
   const [current, setCurrent] = useState(() => normaliseShareCode(code));
   const [phase, setPhase] = useState<Phase>('loading');
@@ -158,7 +161,7 @@ export const SharedProfileScreen: React.FC<{
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <View style={styles.header}>
-        <BrandLockup size={22} />
+        <BrandLockup size={22} tier={tier} />
         {onClose ? (
           <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close the shared report" style={styles.close}>
             <Text style={styles.closeLabel}>Close</Text>
@@ -321,7 +324,7 @@ export const SharedProfileScreen: React.FC<{
 const styles = {
   screen: { padding: 16, gap: 12, backgroundColor: ci.color.background, flexGrow: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 30 },
-  close: { paddingVertical: 6, paddingHorizontal: 10 },
+  close: { paddingVertical: 6, paddingHorizontal: 10, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   closeLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '800' },
   loading: { paddingVertical: 48, alignItems: 'center', gap: 10 },
   playerHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 4 },

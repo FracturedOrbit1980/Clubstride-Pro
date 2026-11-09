@@ -160,7 +160,8 @@ export const DrillEditorScreen: React.FC<{
           onPress={() => void save()}
           disabled={busy}
           accessibilityRole="button"
-          accessibilityState={{ busy, disabled: busy }}
+          aria-busy={busy}
+          aria-disabled={busy}
         >
           {busy ? (
             <ActivityIndicator color={ci.color.onPrimary} />
@@ -201,7 +202,7 @@ export const DrillEditorScreen: React.FC<{
 const styles = {
   screen: { padding: 16, gap: 12, backgroundColor: ci.color.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised },
+  back: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: ci.radius.chip, backgroundColor: ci.color.raised, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   backLabel: { color: ci.color.primary, fontSize: 13, fontWeight: '700' },
   headerText: { flex: 1, gap: 2 },
   title: { color: ci.color.text, fontSize: 22, fontWeight: '800' },
@@ -211,7 +212,7 @@ const styles = {
   field: { gap: 5 },
   label: { color: ci.color.muted, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   minutesRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  step: { width: 54, paddingVertical: 12, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center' },
+  step: { width: 54, paddingVertical: 10, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center', minHeight: 44, minWidth: 44, justifyContent: 'center' },
   stepLabel: { color: ci.color.text, fontSize: 15, fontWeight: '800' },
   minutesBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   // minWidth 0 lets the input shrink inside the row; without it the browser keeps its
@@ -224,11 +225,11 @@ const styles = {
   primary: { paddingVertical: 13, borderRadius: ci.radius.control, backgroundColor: ci.color.primary, alignItems: 'center', minHeight: 46, justifyContent: 'center' },
   primaryBusy: { backgroundColor: ci.color.disabledBg },
   primaryLabel: { color: ci.color.onPrimary, fontSize: 15, fontWeight: '800' },
-  secondary: { flex: 1, paddingVertical: 11, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center' },
+  secondary: { flex: 1, paddingVertical: 11, borderRadius: ci.radius.control, backgroundColor: ci.color.raised, alignItems: 'center', minHeight: 44, minWidth: 44, justifyContent: 'center' },
   secondaryLabel: { color: ci.color.text, fontSize: 14, fontWeight: '700' },
-  destructive: { flex: 1, paddingVertical: 11, borderRadius: ci.radius.control, borderWidth: 1, borderColor: ci.color.danger, alignItems: 'center' },
+  destructive: { flex: 1, paddingVertical: 11, borderRadius: ci.radius.control, borderWidth: 1, borderColor: ci.color.danger, alignItems: 'center', minHeight: 44, minWidth: 44, justifyContent: 'center' },
   destructiveLabel: { color: ci.color.danger, fontSize: 14, fontWeight: '800' },
   confirmRow: { flexDirection: 'row', gap: 10 },
-  deleteLink: { alignSelf: 'flex-start', paddingVertical: 4 },
+  deleteLink: { alignSelf: 'flex-start', minHeight: 44, minWidth: 44, paddingVertical: 4, justifyContent: 'center' },
   deleteLinkLabel: { color: ci.color.danger, fontSize: 14, fontWeight: '700' },
 } as const;

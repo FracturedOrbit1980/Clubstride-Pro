@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useAuth } from '../../../core/context/AuthContext';
 import { AuthField, AuthScreen, LinkButton, PrimaryButton, authStyles } from '../components/AuthUi';
+import type { AppMode } from '../appMode';
 
 interface ForgotPasswordScreenProps {
   onBack: () => void;
+  tier?: AppMode | undefined;
 }
 
 const emailLooksValid = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onBack }) => {
+export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onBack, tier }) => {
   const { requestPasswordReset } = useAuth();
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
@@ -36,7 +38,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onBa
 
   if (sentTo) {
     return (
-      <AuthScreen>
+      <AuthScreen tier={tier}>
         <Text style={authStyles.cardTitle}>Check your inbox</Text>
         <Text style={authStyles.muted}>
           If an account exists for {sentTo}, a reset link is on its way. Open the link on this phone to
@@ -53,7 +55,7 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onBa
   }
 
   return (
-    <AuthScreen>
+    <AuthScreen tier={tier}>
       <Text style={authStyles.title}>Reset your password</Text>
       <Text style={authStyles.subtitle}>
         Enter the email you sign in with. We will send a link that lets you choose a new password.

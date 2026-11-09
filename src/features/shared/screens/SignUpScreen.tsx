@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useAuth } from '../../../core/context/AuthContext';
 import { AuthField, AuthScreen, LinkButton, PrimaryButton, authStyles } from '../components/AuthUi';
+import type { AppMode } from '../appMode';
 
 interface SignUpScreenProps {
   onBack: () => void;
+  tier?: AppMode | undefined;
 }
 
 const emailLooksValid = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onBack }) => {
+export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onBack, tier }) => {
   const { signUp } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -52,7 +54,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onBack }) => {
 
   if (sentTo) {
     return (
-      <AuthScreen>
+      <AuthScreen tier={tier}>
         <Text style={authStyles.cardTitle}>Check your inbox</Text>
         <Text style={authStyles.muted}>
           If this address is new, we sent a confirmation link to {sentTo}. Open it, then come back
@@ -69,7 +71,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onBack }) => {
   }
 
   return (
-    <AuthScreen>
+    <AuthScreen tier={tier}>
       <Text style={authStyles.title}>Create an account</Text>
       <Text style={authStyles.subtitle}>
         Register once, then sign in on any phone to keep the same squad and fixtures.
