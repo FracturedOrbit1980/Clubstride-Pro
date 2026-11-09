@@ -2,8 +2,9 @@
 -- Clubstride Pro - the coaching note only staff can read
 -- 20261108120000
 --
--- NOT YET APPLIED to the hosted project. The app reads this table and says plainly that the
--- field is missing until it is, so nothing here is simulated on the client.
+-- APPLIED to project qvslyhnwpdxqfzmjajki on 2026-11-09 and recorded as version 20261108120000. Before
+-- it landed the app read this table, found it absent, and said plainly that the field was missing, so
+-- nothing here was simulated on the client.
 --
 -- player_assessments.coach_notes is the note a family reads: the guardian clause in
 -- "assessments_read" lets a parent through, player_profile_by_code() hands it to whoever holds a
