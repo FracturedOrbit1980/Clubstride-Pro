@@ -82,7 +82,7 @@ Local Metro does not see EAS variables. Copy `.env.example` to `.env` (gitignore
 eas build -p android --profile production
 ```
 
-The first production build is already queued from this repository (versionName `1.0.0`, versionCode `2`). `autoIncrement` bumps `android.versionCode` in `app.json` before each later production build. Commit that bump before the next one. Two uploads with the same versionCode cannot both be on a Play track.
+The first production build finished on EAS: versionName `1.0.0`, versionCode `2`. Build page: https://expo.dev/accounts/fracturedorbit1980/projects/clubstride-mobile/builds/bdf6eb1b-26f4-4201-8701-f695d4694a77. `autoIncrement` bumps `android.versionCode` in `app.json` before each later production build. Commit that bump before the next one. Two uploads with the same versionCode cannot both be on a Play track.
 
 Do not pass `--auto-submit`. There is no Play app and no service-account JSON yet, so `eas submit` cannot succeed.
 
@@ -166,7 +166,7 @@ Do not put the production club password in the console.
 
 - [x] `extra.eas.projectId` is committed for `@fracturedorbit1980/clubstride-mobile`. Do not point it at `robert-delport`.
 - [x] `eas env:list --environment production` shows `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`, and neither value is a `service_role` key.
-- [ ] The production `.aab` (versionCode `2`) finished on EAS. Commit any later `versionCode` bump before the next production build.
+- [x] The production `.aab` (versionCode `2`) finished on EAS. Commit any later `versionCode` bump before the next production build.
 - [x] EAS holds the Android upload keystore. Play App Signing is still to be turned on in Play Console.
 - [ ] Merged permissions are only `INTERNET` plus `tools:node="remove"` for the blocked list.
 - [ ] App name in Play is `Clubstride Pro`. Package is `com.clubstride.mobile`.
