@@ -4,6 +4,7 @@ import { useAuth } from '../../../core/context/AuthContext';
 import { useSyncQueue } from '../../../core/sync';
 import { supabase } from '../../../core/supabaseClient';
 import { BrandLockup } from '../components/BrandLockup';
+import { PrivacyPolicyLink, WebDeletionLink } from '../components/PrivacyPolicyLink';
 import { TrainingDaysCard } from '../../coach/components/TrainingDaysCard';
 import { isShareCode, normaliseShareCode } from '../../coach/player/shareCode';
 import { ci } from '../ci';
@@ -180,6 +181,16 @@ export const SettingsScreen: React.FC<{
                 ? 'No club changes are waiting in this phone’s sync queue. Lite and Pro use the same selected club team.'
                 : `${unsent} club change(s) are still only on this phone. Deleting the account discards them.`}
         </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.label}>Privacy</Text>
+        <Text style={styles.meta}>
+          The privacy policy describes the account and squad records this app stores. Delete the signed-in account
+          with the button on this screen. The web page is for someone who cannot open the app.
+        </Text>
+        <PrivacyPolicyLink />
+        <WebDeletionLink />
       </View>
 
       {mode === 'lite' ? (

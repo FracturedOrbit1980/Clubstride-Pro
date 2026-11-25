@@ -8,11 +8,6 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#0A1630",
     "icon": "./assets/brand/app-icon.png",
-    "splash": {
-      "image": "./assets/brand/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0A1630"
-    },
     "ios": {
       "bundleIdentifier": "com.clubstride.mobile",
       "supportsTablet": true
@@ -26,25 +21,44 @@
         "backgroundColor": "#0A1630",
         "monochromeImage": "./assets/brand/android-icon-monochrome.png"
       },
-      "permissions": [
-        "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE",
-        "POST_NOTIFICATIONS"
-      ],
       "blockedPermissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_BACKGROUND_LOCATION",
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "com.google.android.gms.permission.AD_ID"
       ]
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-status-bar",
+        {
+          "style": "light"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A1630",
+          "image": "./assets/brand/splash-icon.png",
+          "resizeMode": "contain",
+          "imageWidth": 200
+        }
+      ]
     ],
     "web": {
-      "favicon": "./assets/brand/app-icon.png"
+      "favicon": "./assets/brand/app-icon.png",
+      "splash": {
+        "image": "./assets/brand/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0A1630"
+      }
     }
   }
 }

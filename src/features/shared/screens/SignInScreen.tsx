@@ -9,6 +9,7 @@ import {
   SecondaryButton,
   authStyles,
 } from '../components/AuthUi';
+import { PrivacyPolicyLink } from '../components/PrivacyPolicyLink';
 import type { AppMode } from '../appMode';
 
 interface SignInScreenProps {
@@ -122,6 +123,8 @@ export const SignInScreen: React.FC<SignInScreenProps> = ({ onCreateAccount, onF
           <LinkButton label="Back to preview" onPress={onBack} />
         </View>
       ) : null}
+
+      <PrivacyPolicyLink />
     </AuthScreen>
   );
 };
