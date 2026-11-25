@@ -32,7 +32,7 @@
       "android": {
         "track": "internal",
         "releaseStatus": "completed",
-        "packageName": "com.clubstride.mobile",
+        "applicationId": "com.clubstride.mobile",
         "serviceAccountKeyPath": "./secrets/play-service-account.json"
       }
     }

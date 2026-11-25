@@ -2,6 +2,7 @@
   "expo": {
     "name": "Clubstride Pro",
     "slug": "clubstride-mobile",
+    "owner": "fracturedorbit1980",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "clubstride",
@@ -14,7 +15,7 @@
     },
     "android": {
       "package": "com.clubstride.mobile",
-      "versionCode": 1,
+      "versionCode": 2,
       "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/android-icon-foreground.png",
@@ -58,6 +59,14 @@
         "image": "./assets/brand/splash-icon.png",
         "resizeMode": "contain",
         "backgroundColor": "#0A1630"
+      }
+    },
+    "extra": {
+      "expo-status-bar": {
+        "style": "light"
+      },
+      "eas": {
+        "projectId": "23f93edc-9acb-456f-a0c5-dbf8683e553a"
       }
     }
   }
