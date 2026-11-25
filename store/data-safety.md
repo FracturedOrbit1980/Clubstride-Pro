@@ -24,6 +24,8 @@ health info, messages, audio.
 - **Users can request deletion:** yes.
   - Deletion URL: https://fracturedorbit1980.github.io/Clubstride-Pro-Web/delete-account.html
   - In-app path: Settings → Delete account.
+  - In-app privacy policy: Settings → Privacy policy. The same link is on Sign in and Create an account.
+  - Privacy policy URL: https://fracturedorbit1980.github.io/Clubstride-Pro-Web/privacy-policy.html
 - **Data sold:** no.
 - **Data used for advertising:** no.
 - **Data used for personalisation:** no.

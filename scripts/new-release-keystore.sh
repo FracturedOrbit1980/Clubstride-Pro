@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Creates the Android release keystore for Clubstride-Mobile.
+# Creates a local Android upload keystore for Clubstride Pro.
+# Prefer letting EAS generate and hold the keystore, and enrol in Play App Signing.
+# Use this script only if you want the file yourself.
 #
 # The password is read with echo off and handed to keytool through the environment, so it never
 # lands in shell history or in a command-line argument that `ps` can see. This script does not
@@ -12,7 +14,7 @@ KEYSTORE="secrets/clubstride-release.jks"
 ALIAS="clubstride"
 # Distinguished name of the signing certificate. Edit it to match your organisation - it is not
 # shown to users, but it is baked into the artefact and Play App Signing records it.
-DNAME="CN=Clubstride-Mobile, OU=Clubstride, O=Clubstride, L=Dublin, ST=Dublin, C=IE"
+DNAME="CN=Clubstride Pro, OU=Clubstride, O=Clubstride, L=Dublin, ST=Dublin, C=IE"
 
 if ! command -v keytool >/dev/null; then
   echo "keytool not found. Install a JDK 17 or newer, then reopen the terminal." >&2

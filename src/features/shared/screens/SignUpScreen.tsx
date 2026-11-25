@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useAuth } from '../../../core/context/AuthContext';
 import { AuthField, AuthScreen, LinkButton, PrimaryButton, authStyles } from '../components/AuthUi';
+import { PrivacyPolicyLink } from '../components/PrivacyPolicyLink';
 import type { AppMode } from '../appMode';
 
 interface SignUpScreenProps {
@@ -127,6 +128,11 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ onBack, tier }) => {
       />
 
       {error ? <Text style={authStyles.error}>{error}</Text> : null}
+
+      <Text style={authStyles.muted}>
+        Creating an account stores your name and email. You can delete the account later from Settings.
+      </Text>
+      <PrivacyPolicyLink />
 
       <PrimaryButton label="Create account" onPress={() => void submit()} busy={busy} />
 
